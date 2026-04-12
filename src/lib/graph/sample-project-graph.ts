@@ -1,0 +1,153 @@
+import type { ProjectGraphEdge, ProjectGraphNode } from "./types";
+
+const projectId = "prometheus";
+
+export const sampleProjectGraphNodes: ProjectGraphNode[] = [
+  {
+    id: "project-prometheus",
+    projectId,
+    type: "project",
+    title: "Prometheus",
+    description: "The active repository and workspace for project-aware AI memory.",
+    metadata: [
+      { label: "Scope", value: "MVP web app" },
+      { label: "State", value: "Bootstrap" },
+    ],
+    position: { x: 0, y: 80 },
+  },
+  {
+    id: "provider-codex",
+    projectId,
+    type: "provider",
+    title: "Codex",
+    description: "Local terminal coding agent available through the provider layer.",
+    metadata: [
+      { label: "Mode", value: "Local CLI" },
+      { label: "Status", value: "Planned integration" },
+    ],
+    position: { x: -260, y: -60 },
+  },
+  {
+    id: "chat-bootstrap",
+    projectId,
+    type: "chat",
+    title: "Bootstrap Chat",
+    description: "Initial conversation that defined the Prometheus MVP and graph-first direction.",
+    metadata: [
+      { label: "Messages", value: "Seeded" },
+      { label: "Provider", value: "Codex" },
+    ],
+    position: { x: 280, y: -70 },
+  },
+  {
+    id: "file-project-plan",
+    projectId,
+    type: "file",
+    title: "PROJECT_PLAN.md",
+    description: "Local planning document with goals, MVP scope, and implementation chunks.",
+    metadata: [
+      { label: "Git", value: "Ignored" },
+      { label: "Role", value: "Living spec" },
+    ],
+    position: { x: 280, y: 190 },
+  },
+  {
+    id: "topic-graph-v1",
+    projectId,
+    type: "topic",
+    title: "Graph V1",
+    description: "Obsidian-style nodes and typed edges for visual project context.",
+    metadata: [
+      { label: "Priority", value: "MVP" },
+      { label: "Depth", value: "Visual first" },
+    ],
+    position: { x: 590, y: 25 },
+  },
+  {
+    id: "summary-mvp",
+    projectId,
+    type: "message_summary",
+    title: "MVP Summary",
+    description: "A compact summary of the early product direction and deferred AI graph work.",
+    metadata: [
+      { label: "Covers", value: "Scope and constraints" },
+      { label: "Next", value: "Real graph data" },
+    ],
+    position: { x: 600, y: 250 },
+  },
+];
+
+export const sampleProjectGraphEdges: ProjectGraphEdge[] = [
+  {
+    id: "project-contains-chat",
+    projectId,
+    sourceNodeId: "project-prometheus",
+    targetNodeId: "chat-bootstrap",
+    type: "contains",
+    weight: 1,
+    label: "contains",
+  },
+  {
+    id: "project-contains-plan",
+    projectId,
+    sourceNodeId: "project-prometheus",
+    targetNodeId: "file-project-plan",
+    type: "contains",
+    weight: 1,
+    label: "contains",
+  },
+  {
+    id: "project-contains-topic",
+    projectId,
+    sourceNodeId: "project-prometheus",
+    targetNodeId: "topic-graph-v1",
+    type: "contains",
+    weight: 1,
+    label: "contains",
+  },
+  {
+    id: "chat-used-provider",
+    projectId,
+    sourceNodeId: "chat-bootstrap",
+    targetNodeId: "provider-codex",
+    type: "used_provider",
+    weight: 1,
+    label: "used provider",
+  },
+  {
+    id: "chat-mentions-plan",
+    projectId,
+    sourceNodeId: "chat-bootstrap",
+    targetNodeId: "file-project-plan",
+    type: "mentions",
+    weight: 0.8,
+    label: "mentions",
+  },
+  {
+    id: "chat-mentions-graph",
+    projectId,
+    sourceNodeId: "chat-bootstrap",
+    targetNodeId: "topic-graph-v1",
+    type: "mentions",
+    weight: 0.9,
+    label: "mentions",
+  },
+  {
+    id: "summary-summarizes-chat",
+    projectId,
+    sourceNodeId: "summary-mvp",
+    targetNodeId: "chat-bootstrap",
+    type: "summarizes",
+    weight: 0.9,
+    label: "summarizes",
+  },
+  {
+    id: "graph-implemented-in-plan",
+    projectId,
+    sourceNodeId: "topic-graph-v1",
+    targetNodeId: "file-project-plan",
+    type: "implemented_in",
+    weight: 0.7,
+    label: "implemented in",
+  },
+];

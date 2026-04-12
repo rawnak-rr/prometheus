@@ -1,26 +1,14 @@
+import { ProviderList } from "@/components/provider-list/provider-list";
+import { ProjectGraph } from "@/components/project-graph/project-graph";
+import {
+  sampleProjectGraphEdges,
+  sampleProjectGraphNodes,
+} from "@/lib/graph/sample-project-graph";
 import styles from "./page.module.css";
 
 const projects = [
   { name: "Prometheus", meta: "Active repository" },
   { name: "Study Graph", meta: "Planned workspace" },
-];
-
-const providers = [
-  { name: "Codex", meta: "Local terminal provider" },
-  { name: "Claude", meta: "Local terminal provider" },
-];
-
-const graphNodes = [
-  { label: "Project", x: 32, y: 34 },
-  { label: "Chat", x: 178, y: 48 },
-  { label: "Files", x: 96, y: 164 },
-  { label: "Topics", x: 224, y: 178 },
-];
-
-const graphEdges = [
-  { x: 96, y: 76, width: 92, rotate: 8 },
-  { x: 82, y: 116, width: 88, rotate: 116 },
-  { x: 190, y: 120, width: 72, rotate: 66 },
 ];
 
 export default function Home() {
@@ -47,14 +35,7 @@ export default function Home() {
 
         <section className={styles.section}>
           <h2>Providers</h2>
-          <div className={styles.list}>
-            {providers.map((provider) => (
-              <div className={styles.listItem} key={provider.name}>
-                <strong>{provider.name}</strong>
-                <span>{provider.meta}</span>
-              </div>
-            ))}
-          </div>
+          <ProviderList />
         </section>
       </aside>
 
@@ -87,38 +68,11 @@ export default function Home() {
       </section>
 
       <aside className={styles.graphPanel} aria-label="Project graph">
-        <h2>Graph</h2>
-        <p>Project, chat, file, and topic nodes will live here.</p>
-
-        <div className={styles.graphPreview} aria-label="Seeded graph preview">
-          {graphEdges.map((edge) => (
-            <span
-              aria-hidden="true"
-              className={styles.edge}
-              key={`${edge.x}-${edge.y}`}
-              style={{
-                left: edge.x,
-                top: edge.y,
-                width: edge.width,
-                transform: `rotate(${edge.rotate}deg)`,
-              }}
-            />
-          ))}
-          {graphNodes.map((node) => (
-            <span
-              className={styles.node}
-              key={node.label}
-              style={{ left: node.x, top: node.y }}
-            >
-              {node.label}
-            </span>
-          ))}
+        <div className={styles.graphHeader}>
+          <h2>Graph</h2>
+          <p>Project, chat, file, topic, summary, and provider nodes.</p>
         </div>
-
-        <div className={styles.nodeDetails}>
-          <strong>Selected: Project</strong>
-          <p>Next step: replace this preview with a real interactive graph library.</p>
-        </div>
+        <ProjectGraph nodes={sampleProjectGraphNodes} edges={sampleProjectGraphEdges} />
       </aside>
     </main>
   );

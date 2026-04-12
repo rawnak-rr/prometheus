@@ -18,6 +18,10 @@
 
 .graphPanel {
   border-left: 1px solid var(--border);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
 }
 
 .brand {
@@ -48,7 +52,7 @@
 .section p,
 .chatHeader p,
 .message p,
-.nodeDetails p {
+.graphHeader p {
   color: var(--muted);
   line-height: 1.5;
 }
@@ -154,44 +158,9 @@
   padding: 0 16px;
 }
 
-.graphPreview {
-  position: relative;
-  height: 280px;
-  margin-top: 16px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #111217;
-}
-
-.node {
-  position: absolute;
-  display: grid;
-  width: 82px;
-  height: 82px;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent) 70%, #ffffff 10%);
-  border-radius: 50%;
-  background: #15231f;
-  color: var(--foreground);
-  font-size: 12px;
-  font-weight: 700;
-  text-align: center;
-}
-
-.edge {
-  position: absolute;
-  height: 1px;
-  transform-origin: left center;
-  background: var(--border);
-}
-
-.nodeDetails {
-  margin-top: 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel-strong);
-  padding: 12px;
+.graphHeader p {
+  margin: 8px 0 0;
+  font-size: 13px;
 }
 
 @media (max-width: 980px) {
