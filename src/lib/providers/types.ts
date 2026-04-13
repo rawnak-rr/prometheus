@@ -11,6 +11,6 @@ export type LocalProvider = {
 };
 
 export type LocalProvidersResponse = {
-  runtime: "local";
+  runtime: "desktop";
   providers: LocalProvider[];
 };

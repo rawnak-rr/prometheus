@@ -17,11 +17,11 @@
 }
 
 .graphPanel {
-  border-left: 1px solid var(--border);
   display: grid;
+  min-width: 0;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
-  min-width: 0;
+  border-left: 1px solid var(--border);
 }
 
 .brand {
@@ -39,7 +39,6 @@
 
 .brand h1,
 .section h2,
-.chatHeader h2,
 .graphPanel h2 {
   margin: 0;
 }
@@ -50,8 +49,6 @@
 
 .brand p,
 .section p,
-.chatHeader p,
-.message p,
 .graphHeader p {
   color: var(--muted);
   line-height: 1.5;
@@ -93,69 +90,7 @@
 }
 
 .main {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
   min-width: 0;
-}
-
-.chatHeader {
-  border-bottom: 1px solid var(--border);
-  padding: 18px 22px;
-}
-
-.chatHeader h2 {
-  font-size: 20px;
-}
-
-.thread {
-  display: grid;
-  align-content: start;
-  gap: 14px;
-  overflow: auto;
-  padding: 22px;
-}
-
-.message {
-  max-width: 780px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
-  padding: 14px;
-}
-
-.message strong {
-  display: block;
-  margin-bottom: 8px;
-}
-
-.composer {
-  border-top: 1px solid var(--border);
-  padding: 18px 22px;
-}
-
-.composerBox {
-  display: flex;
-  gap: 10px;
-}
-
-.composerBox input {
-  min-width: 0;
-  flex: 1;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--foreground);
-  padding: 12px;
-}
-
-.composerBox button {
-  border: 0;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #07110e;
-  cursor: pointer;
-  font-weight: 700;
-  padding: 0 16px;
 }
 
 .graphHeader p {

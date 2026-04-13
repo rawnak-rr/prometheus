@@ -1,8 +1,6 @@
-"use client";
-
 import { useEffect, useState } from "react";
 
-import type { LocalProvider, LocalProvidersResponse } from "@/lib/providers/types";
+import type { LocalProvider } from "@/lib/providers/types";
 import styles from "./provider-list.module.css";
 
 const loadingProviders: LocalProvider[] = [
@@ -32,13 +30,7 @@ export function ProviderList() {
 
     async function loadProviders() {
       try {
-        const response = await fetch("/api/local/providers");
-
-        if (!response.ok) {
-          throw new Error("Local provider detection failed.");
-        }
-
-        const data = (await response.json()) as LocalProvidersResponse;
+        const data = await window.prometheus.providers.list();
 
         if (isMounted) {
           setProviders(data.providers);

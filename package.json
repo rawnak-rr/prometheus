@@ -2,10 +2,11 @@
   "name": "prometheus",
   "version": "0.1.0",
   "private": true,
+  "main": "./out/main/index.js",
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1",
-    "build": "next build",
-    "start": "next start",
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
@@ -13,16 +14,22 @@
     "@xyflow/react": "^12.10.2",
     "clsx": "^2.1.1",
     "lucide-react": "^1.8.0",
-    "next": "^16.2.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "electron": "^39.2.7",
+    "electron-vite": "^4.0.0",
     "eslint": "^9.39.4",
-    "eslint-config-next": "^16.2.3",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "typescript-eslint": "^8.49.0",
     "typescript": "^6.0.2"
   }
 }
