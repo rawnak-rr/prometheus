@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ChatWorkspace } from "@/components/chat-workspace/chat-workspace";
-import { ProviderList } from "@/components/provider-list/provider-list";
 import { ProjectGraph } from "@/components/project-graph/project-graph";
 import {
   sampleProjectGraphEdges,
@@ -11,8 +10,8 @@ import type { ChatRuntimeEvent, ChatSession } from "@/lib/chat/types";
 import styles from "./App.module.css";
 
 const projects = [
-  { name: "Prometheus", meta: "Desktop workspace" },
-  { name: "Study Graph", meta: "Planned workspace" },
+  { name: "prometheus", meta: "desktop workspace", state: "open" },
+  { name: "study-graph", meta: "planned workspace", state: "soon" },
 ];
 
 function upsertSession(sessions: ChatSession[], session: ChatSession) {
@@ -76,18 +75,28 @@ export function App() {
     <main className={styles.workspace}>
       <aside className={styles.sidebar} aria-label="Project navigation">
         <div className={styles.brand}>
-          <p className={styles.eyebrow}>Prometheus</p>
-          <h1>Project memory</h1>
-          <p>Chat with local coding agents while the repository map stays visible.</p>
+          <span className={styles.appName}>prometheus</span>
+          <span className={styles.appMode}>local</span>
+        </div>
+
+        <div className={styles.cwd}>
+          <span>cwd</span>
+          <strong>~/prometheus</strong>
         </div>
 
         <section className={styles.section}>
           <h2>Projects</h2>
           <div className={styles.list}>
-            {projects.map((project) => (
-              <div className={styles.listItem} key={project.name}>
-                <strong>{project.name}</strong>
-                <span>{project.meta}</span>
+            {projects.map((project, index) => (
+              <div
+                className={`${styles.listItem} ${index === 0 ? styles.activeListItem : ""}`}
+                key={project.name}
+              >
+                <span className={styles.itemText}>
+                  <strong>{project.name}</strong>
+                  <span>{project.meta}</span>
+                </span>
+                <span className={styles.itemState}>{project.state}</span>
               </div>
             ))}
           </div>
@@ -96,8 +105,12 @@ export function App() {
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Chats</h2>
-            <button type="button" onClick={() => setSelectedSessionId(null)}>
-              New
+            <button
+              className={styles.commandButton}
+              type="button"
+              onClick={() => setSelectedSessionId(null)}
+            >
+              + new
             </button>
           </div>
           <div className={styles.chatList}>
@@ -113,9 +126,12 @@ export function App() {
                   type="button"
                   onClick={() => setSelectedSessionId(session.id)}
                 >
-                  <strong>{session.title}</strong>
-                  <span>
-                    {providerLabel(session)} · {session.runtimeMode} · {session.status}
+                  <span className={styles.chatItemTop}>
+                    <strong>{session.title}</strong>
+                    <span>{session.status}</span>
+                  </span>
+                  <span className={styles.chatMeta}>
+                    {providerLabel(session)} / {session.runtimeMode}
                   </span>
                 </button>
               ))
@@ -123,10 +139,6 @@ export function App() {
           </div>
         </section>
 
-        <section className={styles.section}>
-          <h2>Providers</h2>
-          <ProviderList />
-        </section>
       </aside>
 
       <div className={styles.main}>
@@ -139,7 +151,7 @@ export function App() {
       <aside className={styles.graphPanel} aria-label="Project graph">
         <div className={styles.graphHeader}>
           <h2>Graph</h2>
-          <p>Project, chat, file, topic, summary, and provider nodes.</p>
+          <p>project / chat / file / topic / provider</p>
         </div>
         <ProjectGraph nodes={sampleProjectGraphNodes} edges={sampleProjectGraphEdges} />
       </aside>
