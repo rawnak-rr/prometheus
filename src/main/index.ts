@@ -11,6 +11,7 @@ import type {
 import { detectLocalProviders } from "@/lib/providers/local-provider-detection";
 import type { LocalProvidersResponse } from "@/lib/providers/types";
 import { createChatSessionManager } from "./chat/session-manager";
+import { listWorkspaceFiles } from "./workspace/workspace-files";
 
 const supportedChatProviders = new Set<ChatProviderId>(["claude", "codex"]);
 
@@ -72,6 +73,8 @@ ipcMain.handle("providers:list", async (): Promise<LocalProvidersResponse> => {
   };
 });
 
+ipcMain.handle("workspace:list-files", async () => listWorkspaceFiles());
+
 ipcMain.handle(
   "chat:list-sessions",
   async () => chatSessionManager.listSessions(),
@@ -98,6 +101,8 @@ ipcMain.handle(
       prompt: request.prompt,
       model: typeof request.model === "string" ? request.model : null,
       runtimeMode: request.runtimeMode,
+      activeFilePath: typeof request.activeFilePath === "string" ? request.activeFilePath : null,
+      workspaceRoot: typeof request.workspaceRoot === "string" ? request.workspaceRoot : null,
     });
   },
 );

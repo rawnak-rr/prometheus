@@ -23,6 +23,7 @@ type RunningTurn = {
 };
 
 const maxTitleLength = 42;
+const workspaceRoot = process.cwd();
 
 function now() {
   return new Date().toISOString();
@@ -59,6 +60,10 @@ function createAssistantMessage(providerId: ChatMessage["providerId"]): ChatMess
     createdAt: now(),
     status: "streaming",
   };
+}
+
+function resolveSessionScope(activeFilePath?: string | null) {
+  return activeFilePath ? "file" : "repo";
 }
 
 function cloneSession(session: ChatSession): ChatSession {
@@ -115,6 +120,9 @@ export function createChatSessionManager(broadcast: Broadcast) {
     const session: ChatSession = {
       id: randomUUID(),
       title: createTitle(request.prompt),
+      workspaceRoot: request.workspaceRoot?.trim() || workspaceRoot,
+      scope: resolveSessionScope(request.activeFilePath),
+      activeFilePath: request.activeFilePath?.trim() || null,
       providerId: request.providerId,
       model: request.model?.trim() ? request.model.trim() : null,
       runtimeMode: request.runtimeMode,
@@ -234,6 +242,8 @@ export function createChatSessionManager(broadcast: Broadcast) {
         prompt,
         model: session.model,
         runtimeMode: session.runtimeMode,
+        workspaceRoot: session.workspaceRoot,
+        activeFilePath: session.activeFilePath,
       },
       {
         onStdout: (chunk) => appendDelta(session, assistantMessage.id, chunk),

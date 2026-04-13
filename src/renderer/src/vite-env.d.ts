@@ -2,6 +2,7 @@
 
 import type { ChatBridge } from "@/lib/chat/types";
 import type { LocalProvidersResponse } from "@/lib/providers/types";
+import type { WorkspaceBridge } from "@/lib/workspace/types";
 
 declare global {
   interface Window {
@@ -9,6 +10,7 @@ declare global {
       providers: {
         list: () => Promise<LocalProvidersResponse>;
       };
+      workspace: WorkspaceBridge;
       chat: ChatBridge;
     };
   }

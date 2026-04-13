@@ -6,6 +6,8 @@ export type ChatSessionStatus = "idle" | "running" | "error";
 
 export type ChatRuntimeMode = "chat" | "read-only" | "workspace-write";
 
+export type ChatSessionScope = "repo" | "file" | "directory";
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
@@ -18,6 +20,9 @@ export type ChatMessage = {
 export type ChatSession = {
   id: string;
   title: string;
+  workspaceRoot: string;
+  scope: ChatSessionScope;
+  activeFilePath: string | null;
   providerId: ChatProviderId;
   model: string | null;
   runtimeMode: ChatRuntimeMode;
@@ -35,6 +40,8 @@ export type ChatTurnStartRequest = {
   prompt: string;
   model?: string | null;
   runtimeMode: ChatRuntimeMode;
+  activeFilePath?: string | null;
+  workspaceRoot?: string | null;
 };
 
 export type ChatTurnStartResult = {

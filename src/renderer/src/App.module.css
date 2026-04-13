@@ -34,10 +34,6 @@
 }
 
 .brand {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   border-bottom: 1px solid var(--border);
   padding: 0 2px 12px;
 }
@@ -49,38 +45,6 @@
   font-weight: 800;
   text-overflow: ellipsis;
   text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.appMode {
-  border: 1px solid rgba(113, 215, 217, 0.36);
-  border-radius: 3px;
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 6px;
-  text-transform: lowercase;
-}
-
-.cwd {
-  display: grid;
-  gap: 5px;
-  border-bottom: 1px solid var(--border);
-  padding: 0 2px 14px;
-}
-
-.cwd span {
-  color: var(--muted);
-  font-size: 11px;
-  text-transform: uppercase;
-}
-
-.cwd strong {
-  overflow: hidden;
-  color: var(--muted-strong);
-  font-size: 12px;
-  font-weight: 600;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -135,6 +99,8 @@
 
 .listItem:hover,
 .chatItem:hover,
+.fileRow:hover,
+.nestedChatItem:hover,
 .commandButton:hover {
   background: var(--panel-strong);
   color: var(--foreground);
@@ -175,6 +141,99 @@
 .chatList {
   display: grid;
   gap: 2px;
+}
+
+.fileTree {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.fileNode {
+  min-width: 0;
+}
+
+.fileRow {
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted-strong);
+  cursor: pointer;
+  font-size: 12px;
+  padding-bottom: 5px;
+  padding-right: 6px;
+  padding-top: 5px;
+  text-align: left;
+}
+
+.selectedFileRow {
+  border-left-color: var(--accent);
+  background: var(--panel-strong);
+  color: var(--foreground);
+}
+
+.fileIcon {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileChatCount {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.fileChats {
+  display: grid;
+  gap: 1px;
+}
+
+.nestedChatItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding-bottom: 4px;
+  padding-right: 6px;
+  padding-top: 4px;
+  text-align: left;
+}
+
+.nestedChatItem span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nestedChatItem span:last-child {
+  text-transform: lowercase;
+}
+
+.selectedNestedChatItem {
+  border-left-color: var(--accent);
+  background: var(--foreground);
+  color: var(--background);
 }
 
 .chatItem {

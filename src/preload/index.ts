@@ -9,11 +9,16 @@ import type {
   ChatSession,
 } from "@/lib/chat/types";
 import type { LocalProvidersResponse } from "@/lib/providers/types";
+import type { WorkspaceBridge, WorkspaceListFilesResponse } from "@/lib/workspace/types";
 
 const api = {
   providers: {
     list: () => ipcRenderer.invoke("providers:list") as Promise<LocalProvidersResponse>,
   },
+  workspace: {
+    listFiles: () =>
+      ipcRenderer.invoke("workspace:list-files") as Promise<WorkspaceListFilesResponse>,
+  } satisfies WorkspaceBridge,
   chat: {
     listSessions: () =>
       ipcRenderer.invoke("chat:list-sessions") as Promise<ChatSession[]>,

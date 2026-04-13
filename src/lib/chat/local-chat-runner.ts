@@ -12,6 +12,8 @@ type LocalChatRun = {
   prompt: string;
   model?: string | null;
   runtimeMode?: ChatRuntimeMode;
+  workspaceRoot?: string | null;
+  activeFilePath?: string | null;
 };
 
 export type LocalChatTurnCallbacks = {
@@ -29,6 +31,7 @@ type ProviderCommand = {
   command: string;
   args: string[];
   stdin: string | null;
+  cwd: string | null;
 };
 
 export class LocalChatError extends Error {
@@ -40,13 +43,23 @@ export class LocalChatError extends Error {
   }
 }
 
-function getChatOnlyPrompt(prompt: string) {
+function getContextPrefix(input: LocalChatRun) {
+  const contextLines = [
+    input.workspaceRoot ? `Workspace root: ${input.workspaceRoot}` : null,
+    input.activeFilePath ? `Selected file: ${input.activeFilePath}` : null,
+  ].filter(Boolean);
+
+  return contextLines.length > 0 ? [...contextLines, ""].join("\n") : "";
+}
+
+function getChatOnlyPrompt(input: LocalChatRun) {
   return [
     "You are being used as a local chatbot inside Prometheus.",
     "Answer the user's message directly. Do not edit files, run shell commands, or request tool permissions.",
     "",
+    getContextPrefix(input),
     "User message:",
-    prompt,
+    input.prompt,
   ].join("\n");
 }
 
@@ -64,11 +77,12 @@ function getProviderCommand(input: LocalChatRun): ProviderCommand {
   const runtimeMode = input.runtimeMode ?? "chat";
   const chatOnlyPrompt =
     runtimeMode === "chat"
-      ? getChatOnlyPrompt(input.prompt)
+      ? getChatOnlyPrompt(input)
       : [
           "You are being used inside Prometheus.",
           "Act like the selected local coding-agent CLI would in a terminal, but keep the response concise unless the user asks for detail.",
           "",
+          getContextPrefix(input),
           "User message:",
           input.prompt,
         ].join("\n");
@@ -97,6 +111,7 @@ function getProviderCommand(input: LocalChatRun): ProviderCommand {
       command: "claude",
       args,
       stdin: chatOnlyPrompt,
+      cwd: input.workspaceRoot ?? null,
     };
   }
 
@@ -119,6 +134,7 @@ function getProviderCommand(input: LocalChatRun): ProviderCommand {
     command: "codex",
     args,
     stdin: chatOnlyPrompt,
+    cwd: input.workspaceRoot ?? null,
   };
 }
 
@@ -154,6 +170,7 @@ export async function runLocalChat({ providerId, prompt, model, runtimeMode }: L
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(providerCommand.command, providerCommand.args, {
+      cwd: providerCommand.cwd ?? undefined,
       shell: false,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -225,6 +242,7 @@ export function startLocalChatTurn(input: LocalChatRun, callbacks: LocalChatTurn
   });
 
   const child = spawn(providerCommand.command, providerCommand.args, {
+    cwd: providerCommand.cwd ?? undefined,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
   });

@@ -7,12 +7,8 @@ import {
   sampleProjectGraphNodes,
 } from "@/lib/graph/sample-project-graph";
 import type { ChatRuntimeEvent, ChatSession } from "@/lib/chat/types";
+import type { WorkspaceEntry } from "@/lib/workspace/types";
 import styles from "./App.module.css";
-
-const projects = [
-  { name: "prometheus", meta: "desktop workspace", state: "open" },
-  { name: "study-graph", meta: "planned workspace", state: "soon" },
-];
 
 function upsertSession(sessions: ChatSession[], session: ChatSession) {
   const existingIndex = sessions.findIndex((candidate) => candidate.id === session.id);
@@ -30,13 +26,94 @@ function providerLabel(session: ChatSession) {
   return session.providerId === "claude" ? "Claude" : "Codex";
 }
 
+type WorkspaceTreeNode = WorkspaceEntry & {
+  name: string;
+  children: WorkspaceTreeNode[];
+};
+
+function entryName(path: string) {
+  return path.split("/").at(-1) ?? path;
+}
+
+function buildWorkspaceTree(entries: WorkspaceEntry[]) {
+  const nodeByPath = new Map<string, WorkspaceTreeNode>();
+  const roots: WorkspaceTreeNode[] = [];
+
+  for (const entry of entries) {
+    nodeByPath.set(entry.path, {
+      ...entry,
+      name: entryName(entry.path),
+      children: [],
+    });
+  }
+
+  for (const node of nodeByPath.values()) {
+    if (node.parentPath) {
+      nodeByPath.get(node.parentPath)?.children.push(node);
+      continue;
+    }
+
+    roots.push(node);
+  }
+
+  function sortNodes(nodes: WorkspaceTreeNode[]) {
+    nodes.sort((left, right) => {
+      if (left.kind !== right.kind) {
+        return left.kind === "directory" ? -1 : 1;
+      }
+
+      return left.name.localeCompare(right.name);
+    });
+
+    for (const node of nodes) {
+      sortNodes(node.children);
+    }
+  }
+
+  sortNodes(roots);
+  return roots;
+}
+
+function initialExpandedPaths(entries: WorkspaceEntry[]) {
+  return new Set(
+    entries
+      .filter((entry) => entry.kind === "directory" && !entry.parentPath)
+      .map((entry) => entry.path),
+  );
+}
+
 export function App() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [workspaceRoot, setWorkspaceRoot] = useState<string | null>(null);
+  const [workspaceEntries, setWorkspaceEntries] = useState<WorkspaceEntry[]>([]);
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const selectedSession = useMemo(
     () => sessions.find((session) => session.id === selectedSessionId) ?? null,
     [selectedSessionId, sessions],
   );
+  const workspaceTree = useMemo(() => buildWorkspaceTree(workspaceEntries), [workspaceEntries]);
+  const repoSessions = useMemo(
+    () => sessions.filter((session) => !session.activeFilePath),
+    [sessions],
+  );
+  const sessionsByFilePath = useMemo(() => {
+    const next = new Map<string, ChatSession[]>();
+
+    for (const session of sessions) {
+      if (!session.activeFilePath) {
+        continue;
+      }
+
+      const current = next.get(session.activeFilePath) ?? [];
+      current.push(session);
+      next.set(session.activeFilePath, current);
+    }
+
+    return next;
+  }, [sessions]);
 
   useEffect(() => {
     let isMounted = true;
@@ -71,60 +148,168 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    window.prometheus.workspace
+      .listFiles()
+      .then((workspace) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setWorkspaceRoot(workspace.workspaceRoot);
+        setWorkspaceEntries(workspace.entries);
+        setExpandedPaths(initialExpandedPaths(workspace.entries));
+        setWorkspaceError(null);
+      })
+      .catch((error) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setWorkspaceError(
+          error instanceof Error ? error.message : "Failed to load workspace files.",
+        );
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  function selectSession(session: ChatSession) {
+    setSelectedSessionId(session.id);
+    setActiveFilePath(session.activeFilePath);
+  }
+
+  function toggleDirectory(path: string) {
+    setExpandedPaths((current) => {
+      const next = new Set(current);
+
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+
+      return next;
+    });
+  }
+
+  function renderWorkspaceNode(node: WorkspaceTreeNode, depth = 0) {
+    const isExpanded = expandedPaths.has(node.path);
+    const fileSessions = node.kind === "file" ? sessionsByFilePath.get(node.path) ?? [] : [];
+    const selected = node.kind === "file" && node.path === activeFilePath;
+
+    return (
+      <div className={styles.fileNode} key={node.path}>
+        <button
+          className={`${styles.fileRow} ${selected ? styles.selectedFileRow : ""}`}
+          style={{ paddingLeft: `${6 + depth * 13}px` }}
+          type="button"
+          onClick={() => {
+            if (node.kind === "directory") {
+              toggleDirectory(node.path);
+              return;
+            }
+
+            setActiveFilePath(node.path);
+            setSelectedSessionId(fileSessions[0]?.id ?? null);
+          }}
+        >
+          <span className={styles.fileIcon}>
+            {node.kind === "directory" ? (isExpanded ? "v" : ">") : "-"}
+          </span>
+          <span className={styles.fileName}>{node.name}</span>
+          {fileSessions.length > 0 ? (
+            <span className={styles.fileChatCount}>{fileSessions.length}</span>
+          ) : null}
+        </button>
+
+        {fileSessions.length > 0 ? (
+          <div className={styles.fileChats}>
+            {fileSessions.map((session) => (
+              <button
+                className={`${styles.nestedChatItem} ${
+                  session.id === selectedSessionId ? styles.selectedNestedChatItem : ""
+                }`}
+                key={session.id}
+                style={{ paddingLeft: `${25 + depth * 13}px` }}
+                type="button"
+                onClick={() => selectSession(session)}
+              >
+                <span>{session.title}</span>
+                <span>{session.status}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {node.kind === "directory" && isExpanded ? (
+          <div>{node.children.map((child) => renderWorkspaceNode(child, depth + 1))}</div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <main className={styles.workspace}>
       <aside className={styles.sidebar} aria-label="Project navigation">
         <div className={styles.brand}>
           <span className={styles.appName}>prometheus</span>
-          <span className={styles.appMode}>local</span>
-        </div>
-
-        <div className={styles.cwd}>
-          <span>cwd</span>
-          <strong>~/prometheus</strong>
         </div>
 
         <section className={styles.section}>
-          <h2>Projects</h2>
-          <div className={styles.list}>
-            {projects.map((project, index) => (
-              <div
-                className={`${styles.listItem} ${index === 0 ? styles.activeListItem : ""}`}
-                key={project.name}
-              >
-                <span className={styles.itemText}>
-                  <strong>{project.name}</strong>
-                  <span>{project.meta}</span>
-                </span>
-                <span className={styles.itemState}>{project.state}</span>
-              </div>
-            ))}
+          <div className={styles.sectionHeader}>
+            <h2>Files</h2>
+            <button
+              className={styles.commandButton}
+              type="button"
+              onClick={() => {
+                setActiveFilePath(null);
+                setSelectedSessionId(null);
+              }}
+            >
+              repo
+            </button>
+          </div>
+          {workspaceError ? <p className={styles.emptyList}>{workspaceError}</p> : null}
+          <div className={styles.fileTree}>
+            {workspaceTree.length === 0 && !workspaceError ? (
+              <p className={styles.emptyList}>Loading files...</p>
+            ) : (
+              workspaceTree.map((node) => renderWorkspaceNode(node))
+            )}
           </div>
         </section>
 
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2>Chats</h2>
+            <h2>Repo Threads</h2>
             <button
               className={styles.commandButton}
               type="button"
-              onClick={() => setSelectedSessionId(null)}
+              onClick={() => {
+                setActiveFilePath(null);
+                setSelectedSessionId(null);
+              }}
             >
               + new
             </button>
           </div>
           <div className={styles.chatList}>
-            {sessions.length === 0 ? (
+            {repoSessions.length === 0 ? (
               <p className={styles.emptyList}>No threads yet.</p>
             ) : (
-              sessions.map((session) => (
+              repoSessions.map((session) => (
                 <button
                   className={`${styles.chatItem} ${
                     session.id === selectedSessionId ? styles.selectedChatItem : ""
                   }`}
                   key={session.id}
                   type="button"
-                  onClick={() => setSelectedSessionId(session.id)}
+                  onClick={() => selectSession(session)}
                 >
                   <span className={styles.chatItemTop}>
                     <strong>{session.title}</strong>
@@ -144,6 +329,8 @@ export function App() {
       <div className={styles.main}>
         <ChatWorkspace
           session={selectedSession}
+          activeFilePath={activeFilePath}
+          workspaceRoot={workspaceRoot}
           onSessionSelected={(sessionId) => setSelectedSessionId(sessionId)}
         />
       </div>

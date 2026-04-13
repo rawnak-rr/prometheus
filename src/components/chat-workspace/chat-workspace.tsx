@@ -39,6 +39,8 @@ type DiffFileStat = {
 
 type ChatWorkspaceProps = {
   session: ChatSession | null;
+  activeFilePath: string | null;
+  workspaceRoot: string | null;
   onSessionSelected: (sessionId: string) => void;
 };
 
@@ -319,7 +321,12 @@ function ChatMessageArticle({ message }: { message: ChatMessage }) {
   );
 }
 
-export function ChatWorkspace({ session, onSessionSelected }: ChatWorkspaceProps) {
+export function ChatWorkspace({
+  session,
+  activeFilePath,
+  workspaceRoot,
+  onSessionSelected,
+}: ChatWorkspaceProps) {
   const [providerId, setProviderId] = useState<ChatProviderId>("claude");
   const [runtimeMode, setRuntimeMode] = useState<ChatRuntimeMode>("chat");
   const [model, setModel] = useState("");
@@ -340,9 +347,10 @@ export function ChatWorkspace({ session, onSessionSelected }: ChatWorkspaceProps
     return [
       providerLabels[provider].toLowerCase(),
       runtimeLabels[runtime],
+      session?.activeFilePath ?? activeFilePath ?? "repo",
       modelLabel || "default model",
     ].join(" / ");
-  }, [model, providerId, runtimeMode, session]);
+  }, [activeFilePath, model, providerId, runtimeMode, session]);
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -363,6 +371,8 @@ export function ChatWorkspace({ session, onSessionSelected }: ChatWorkspaceProps
         prompt: trimmedPrompt,
         model: selectedModel,
         runtimeMode: selectedRuntimeMode,
+        activeFilePath: session?.activeFilePath ?? activeFilePath,
+        workspaceRoot: session?.workspaceRoot ?? workspaceRoot,
       });
 
       setPrompt("");
