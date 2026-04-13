@@ -1,45 +1,70 @@
 .workspace {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 100vh;
   min-width: 0;
+  background: var(--background);
 }
 
 .header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 48vw);
+  align-items: end;
+  gap: 18px;
   border-bottom: 1px solid var(--border);
-  padding: 18px 22px;
+  background: var(--background);
+  padding: 14px 16px;
+}
+
+.titleBlock {
+  min-width: 0;
+}
+
+.kicker {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .header h2 {
+  overflow: hidden;
   margin: 0;
-  font-size: 20px;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header p {
-  margin: 8px 0 0;
+  overflow: hidden;
+  margin: 6px 0 0;
   color: var(--muted);
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .controls {
   display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
-  gap: 10px;
-  min-width: min(520px, 52vw);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
 }
 
 .control {
   display: grid;
-  gap: 6px;
+  gap: 5px;
+  min-width: 0;
 }
 
 .control label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -47,11 +72,12 @@
 .control input,
 .control select {
   min-width: 0;
+  height: 32px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
+  border-radius: 3px;
+  background: var(--panel-soft);
   color: var(--foreground);
-  padding: 9px 10px;
+  padding: 0 8px;
 }
 
 .control input:disabled,
@@ -63,108 +89,304 @@
 .thread {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 0;
   overflow: auto;
-  padding: 22px;
+  background: var(--background);
 }
 
 .message {
   display: grid;
-  gap: 8px;
-  max-width: 820px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
-  padding: 14px;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+  max-width: none;
+  border-bottom: 1px solid var(--border);
+  border-left: 2px solid transparent;
+  background: transparent;
+  padding: 15px 16px;
+}
+
+.message:hover {
+  background: rgba(216, 222, 233, 0.025);
+}
+
+.user {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: end;
+  border-left-color: transparent;
 }
 
 .assistant {
-  border-color: rgba(76, 201, 166, 0.28);
+  border-left-color: rgba(113, 215, 217, 0.55);
 }
 
 .failed {
-  border-color: rgba(212, 170, 85, 0.45);
+  border-left-color: var(--accent-yellow);
 }
 
 .messageHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+}
+
+.user .messageHeader {
+  display: none;
 }
 
 .messageHeader strong {
-  font-size: 14px;
+  overflow: hidden;
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.assistant .messageHeader strong {
+  color: var(--accent);
+}
+
+.failed .messageHeader strong {
+  color: var(--accent-yellow);
 }
 
 .providerBadge {
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
   color: var(--muted);
   font-size: 11px;
+  font-weight: 700;
+  padding: 0;
+  text-overflow: ellipsis;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.messageColumn {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.user .messageColumn {
+  width: min(760px, 82%);
+}
+
+.messageBody {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.user .messageBody {
+  border: 1px solid var(--border);
+  border-radius: 6px 6px 2px;
+  background: var(--panel-strong);
+  padding: 10px 12px;
+}
+
+.textBlock {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.65;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.codeBlock {
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-soft);
+}
+
+.codeBlock figcaption {
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
   font-weight: 800;
-  padding: 3px 6px;
+  padding: 6px 8px;
   text-transform: uppercase;
 }
 
-.message p {
+.codeBlock pre {
+  overflow: auto;
   margin: 0;
-  color: var(--muted);
+  padding: 9px 0;
+}
+
+.codeBlock code {
+  display: block;
+  color: var(--muted-strong);
+  font: inherit;
   line-height: 1.55;
-  white-space: pre-wrap;
+  padding: 0 10px;
+  white-space: pre;
+}
+
+.diffBlock pre span {
+  display: block;
+  min-height: 1.55em;
+  padding: 0 10px;
+  white-space: pre;
+}
+
+.diffMeta {
+  color: var(--accent-magenta);
+}
+
+.diffFile {
+  color: var(--accent-strong);
+}
+
+.diffHunk {
+  background: rgba(113, 215, 217, 0.08);
+  color: var(--accent);
+}
+
+.diffAddition {
+  background: rgba(166, 209, 137, 0.08);
+  color: var(--accent-green);
+}
+
+.diffDeletion {
+  background: rgba(224, 108, 117, 0.08);
+  color: var(--accent-red);
+}
+
+.diffContext {
+  color: var(--muted-strong);
+}
+
+.changedFiles {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-soft);
+  padding: 8px;
+}
+
+.changedFilesHeader,
+.changedFileRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.changedFilesHeader {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.changedFileList {
+  display: grid;
+  gap: 2px;
+}
+
+.changedFileRow {
+  border-top: 1px solid rgba(66, 75, 84, 0.45);
+  color: var(--muted-strong);
+  font-size: 12px;
+  padding-top: 6px;
+}
+
+.changedFileRow span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diffStat {
+  display: inline-flex;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.diffStatAdd {
+  color: var(--accent-green);
+}
+
+.diffStatDelete {
+  color: var(--accent-red);
 }
 
 .emptyState {
-  max-width: 620px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
-  padding: 16px;
+  display: grid;
+  gap: 8px;
+  max-width: 520px;
+  border-left: 2px solid var(--border-strong);
+  margin: 22px 16px;
+  padding: 3px 0 3px 14px;
 }
 
 .emptyState strong {
-  display: block;
-  margin-bottom: 8px;
+  color: var(--foreground);
+  font-size: 13px;
 }
 
 .emptyState p {
   margin: 0;
   color: var(--muted);
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .composer {
   border-top: 1px solid var(--border);
-  padding: 18px 22px;
+  background: var(--panel-soft);
+  padding: 12px 16px;
 }
 
 .composerBox {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 8px;
+  align-items: stretch;
 }
 
 .composerBox textarea {
-  min-height: 46px;
+  min-height: 44px;
   max-height: 160px;
   min-width: 0;
-  flex: 1;
   resize: vertical;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
+  border-radius: 3px;
+  background: var(--background);
   color: var(--foreground);
-  padding: 12px;
+  line-height: 1.5;
+  padding: 10px 11px;
 }
 
 .composerBox button {
   align-self: stretch;
-  border: 0;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #07110e;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--panel-strong);
+  color: var(--foreground);
   cursor: pointer;
+  font-size: 12px;
   font-weight: 800;
-  padding: 0 18px;
+  padding: 0 12px;
+  text-transform: lowercase;
+}
+
+.composerBox button:not(:disabled):hover {
+  background: var(--foreground);
+  color: var(--background);
 }
 
 .composerBox button:disabled {
@@ -172,21 +394,26 @@
   opacity: 0.58;
 }
 
-.stopButton {
-  background: #d4aa55;
-  color: #17120a;
+.composerBox .stopButton {
+  border-color: rgba(229, 192, 123, 0.55);
+  color: var(--accent-yellow);
+}
+
+.composerBox .stopButton:hover {
+  background: var(--accent-yellow);
+  color: var(--background);
 }
 
 .error {
-  margin: 10px 0 0;
-  color: #d4aa55;
-  font-size: 13px;
+  margin: 9px 0 0;
+  color: var(--accent-yellow);
+  font-size: 12px;
   line-height: 1.45;
 }
 
 @media (max-width: 720px) {
   .header {
-    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .controls {
@@ -195,10 +422,29 @@
   }
 
   .composerBox {
-    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .composerBox button {
     min-height: 44px;
+  }
+
+  .message {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .messageHeader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .user .messageHeader {
+    display: none;
+  }
+
+  .user .messageColumn {
+    width: 100%;
   }
 }
