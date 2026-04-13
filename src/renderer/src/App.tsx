@@ -90,6 +90,7 @@ export function App() {
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [isGraphCollapsed, setIsGraphCollapsed] = useState(false);
   const selectedSession = useMemo(
     () => sessions.find((session) => session.id === selectedSessionId) ?? null,
     [selectedSessionId, sessions],
@@ -254,7 +255,7 @@ export function App() {
   }
 
   return (
-    <main className={styles.workspace}>
+    <main className={`${styles.workspace} ${isGraphCollapsed ? styles.workspaceGraphCollapsed : ""}`}>
       <aside className={styles.sidebar} aria-label="Project navigation">
         <div className={styles.brand}>
           <span className={styles.appName}>prometheus</span>
@@ -335,12 +336,24 @@ export function App() {
         />
       </div>
 
-      <aside className={styles.graphPanel} aria-label="Project graph">
+      <aside
+        className={`${styles.graphPanel} ${isGraphCollapsed ? styles.graphPanelCollapsed : ""}`}
+        aria-label="Project graph"
+      >
         <div className={styles.graphHeader}>
           <h2>Graph</h2>
-          <p>project / chat / file / topic / provider</p>
+          <button
+            className={styles.graphToggle}
+            type="button"
+            aria-label={isGraphCollapsed ? "Expand graph" : "Collapse graph"}
+            onClick={() => setIsGraphCollapsed((current) => !current)}
+          >
+            {isGraphCollapsed ? "<" : ">"}
+          </button>
         </div>
-        <ProjectGraph nodes={sampleProjectGraphNodes} edges={sampleProjectGraphEdges} />
+        {isGraphCollapsed ? null : (
+          <ProjectGraph nodes={sampleProjectGraphNodes} edges={sampleProjectGraphEdges} />
+        )}
       </aside>
     </main>
   );

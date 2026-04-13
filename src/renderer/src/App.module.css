@@ -7,6 +7,10 @@
   color: var(--foreground);
 }
 
+.workspaceGraphCollapsed {
+  grid-template-columns: 286px minmax(0, 1fr) 42px;
+}
+
 .sidebar,
 .graphPanel {
   border-color: var(--border);
@@ -31,6 +35,11 @@
   overflow: auto;
   border-left: 1px solid var(--border);
   padding: 14px;
+}
+
+.graphPanelCollapsed {
+  justify-items: center;
+  padding: 14px 7px;
 }
 
 .brand {
@@ -293,10 +302,48 @@
   line-height: 1.4;
 }
 
+.graphHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.graphPanelCollapsed .graphHeader {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
+.graphPanelCollapsed .graphHeader h2 {
+  writing-mode: vertical-rl;
+}
+
+.graphToggle {
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 2px 4px;
+}
+
+.graphToggle:hover {
+  background: var(--panel-strong);
+  color: var(--foreground);
+}
+
 @media (max-width: 980px) {
   .workspace {
     height: auto;
     min-height: 100vh;
+    grid-template-columns: 1fr;
+  }
+
+  .workspaceGraphCollapsed {
     grid-template-columns: 1fr;
   }
 
