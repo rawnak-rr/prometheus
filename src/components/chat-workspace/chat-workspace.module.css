@@ -25,25 +25,39 @@
   line-height: 1.5;
 }
 
-.providerControl {
+.controls {
   display: grid;
-  gap: 6px;
-  min-width: 168px;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 10px;
+  min-width: min(520px, 52vw);
 }
 
-.providerControl label {
+.control {
+  display: grid;
+  gap: 6px;
+}
+
+.control label {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
 }
 
-.providerControl select {
+.control input,
+.control select {
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
   color: var(--foreground);
   padding: 9px 10px;
+}
+
+.control input:disabled,
+.control select:disabled {
+  color: var(--muted);
+  opacity: 0.72;
 }
 
 .thread {
@@ -66,6 +80,10 @@
 
 .assistant {
   border-color: rgba(76, 201, 166, 0.28);
+}
+
+.failed {
+  border-color: rgba(212, 170, 85, 0.45);
 }
 
 .messageHeader {
@@ -94,6 +112,25 @@
   color: var(--muted);
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+.emptyState {
+  max-width: 620px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 16px;
+}
+
+.emptyState strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.emptyState p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
 }
 
 .composer {
@@ -135,6 +172,11 @@
   opacity: 0.58;
 }
 
+.stopButton {
+  background: #d4aa55;
+  color: #17120a;
+}
+
 .error {
   margin: 10px 0 0;
   color: #d4aa55;
@@ -147,7 +189,8 @@
     display: grid;
   }
 
-  .providerControl {
+  .controls {
+    grid-template-columns: 1fr;
     min-width: 0;
   }
 

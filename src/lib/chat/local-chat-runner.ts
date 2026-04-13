@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-import type { ChatProviderId } from "./types";
+import type { ChatProviderId, ChatRuntimeMode } from "./types";
 
 const maxPromptLength = 12_000;
 const processTimeoutMs = 120_000;
@@ -10,6 +10,19 @@ const ansiEscapePattern = new RegExp(`${escapeCharacter}\\[[0-?]*[ -/]*[@-~]`, "
 type LocalChatRun = {
   providerId: ChatProviderId;
   prompt: string;
+  model?: string | null;
+  runtimeMode?: ChatRuntimeMode;
+};
+
+export type LocalChatTurnCallbacks = {
+  onStdout: (chunk: string) => void;
+  onStderr: (chunk: string) => void;
+  onComplete: () => void;
+  onError: (error: LocalChatError) => void;
+};
+
+export type LocalChatTurnHandle = {
+  stop: () => void;
 };
 
 type ProviderCommand = {
@@ -37,37 +50,74 @@ function getChatOnlyPrompt(prompt: string) {
   ].join("\n");
 }
 
-function getProviderCommand(providerId: ChatProviderId, prompt: string): ProviderCommand {
-  const chatOnlyPrompt = getChatOnlyPrompt(prompt);
+function getCodexSandbox(runtimeMode: ChatRuntimeMode) {
+  switch (runtimeMode) {
+    case "workspace-write":
+      return "workspace-write";
+    case "chat":
+    case "read-only":
+      return "read-only";
+  }
+}
 
-  if (providerId === "claude") {
+function getProviderCommand(input: LocalChatRun): ProviderCommand {
+  const runtimeMode = input.runtimeMode ?? "chat";
+  const chatOnlyPrompt =
+    runtimeMode === "chat"
+      ? getChatOnlyPrompt(input.prompt)
+      : [
+          "You are being used inside Prometheus.",
+          "Act like the selected local coding-agent CLI would in a terminal, but keep the response concise unless the user asks for detail.",
+          "",
+          "User message:",
+          input.prompt,
+        ].join("\n");
+
+  if (input.providerId === "claude") {
+    const args = [
+      "-p",
+      "--output-format",
+      "text",
+      "--input-format",
+      "text",
+      "--no-session-persistence",
+    ];
+
+    if (input.model?.trim()) {
+      args.push("--model", input.model.trim());
+    }
+
+    if (runtimeMode === "chat") {
+      args.push("--tools", "");
+    } else if (runtimeMode === "workspace-write") {
+      args.push("--permission-mode", "acceptEdits");
+    }
+
     return {
       command: "claude",
-      args: [
-        "-p",
-        "--output-format",
-        "text",
-        "--input-format",
-        "text",
-        "--no-session-persistence",
-        "--tools",
-        "",
-      ],
+      args,
       stdin: chatOnlyPrompt,
     };
   }
 
+  const args = [
+    "exec",
+    "--sandbox",
+    getCodexSandbox(runtimeMode),
+    "--skip-git-repo-check",
+    "--color",
+    "never",
+  ];
+
+  if (input.model?.trim()) {
+    args.push("--model", input.model.trim());
+  }
+
+  args.push("-");
+
   return {
     command: "codex",
-    args: [
-      "exec",
-      "--sandbox",
-      "read-only",
-      "--skip-git-repo-check",
-      "--color",
-      "never",
-      "-",
-    ],
+    args,
     stdin: chatOnlyPrompt,
   };
 }
@@ -89,7 +139,7 @@ function sanitizeErrorOutput(output: string) {
     .join(" ");
 }
 
-export async function runLocalChat({ providerId, prompt }: LocalChatRun) {
+export async function runLocalChat({ providerId, prompt, model, runtimeMode }: LocalChatRun) {
   const trimmedPrompt = prompt.trim();
 
   if (!trimmedPrompt) {
@@ -100,7 +150,7 @@ export async function runLocalChat({ providerId, prompt }: LocalChatRun) {
     throw new LocalChatError(`Prompt is too long. Limit it to ${maxPromptLength} characters.`, 400);
   }
 
-  const providerCommand = getProviderCommand(providerId, trimmedPrompt);
+  const providerCommand = getProviderCommand({ providerId, prompt: trimmedPrompt, model, runtimeMode });
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(providerCommand.command, providerCommand.args, {
@@ -143,24 +193,7 @@ export async function runLocalChat({ providerId, prompt }: LocalChatRun) {
         return;
       }
 
-      const stderrText = Buffer.concat(stderr).toString("utf8");
-      const cleanError = sanitizeErrorOutput(stderrText);
-      const likelyAuthIssue = /auth|login|api key|apikey|credential|token/i.test(stderrText);
-      const likelyNetworkIssue = /network|lookup|websocket|disconnected|request|url/i.test(stderrText);
-      const reason = likelyAuthIssue
-        ? " Check local CLI authentication."
-        : likelyNetworkIssue
-          ? " Check network access from the local server."
-        : " Check the local CLI in your terminal.";
-
-      reject(
-        new LocalChatError(
-          `${providerId} exited with code ${code}.${reason}${
-            cleanError ? ` ${cleanError}` : ""
-          }`,
-          502,
-        ),
-      );
+      reject(createProviderExitError(providerId, code, Buffer.concat(stderr).toString("utf8")));
     });
 
     if (providerCommand.stdin) {
@@ -169,4 +202,124 @@ export async function runLocalChat({ providerId, prompt }: LocalChatRun) {
       child.stdin.end();
     }
   });
+}
+
+export function startLocalChatTurn(input: LocalChatRun, callbacks: LocalChatTurnCallbacks) {
+  const trimmedPrompt = input.prompt.trim();
+
+  if (!trimmedPrompt) {
+    callbacks.onError(new LocalChatError("Prompt is required.", 400));
+    return { stop: () => undefined };
+  }
+
+  if (trimmedPrompt.length > maxPromptLength) {
+    callbacks.onError(
+      new LocalChatError(`Prompt is too long. Limit it to ${maxPromptLength} characters.`, 400),
+    );
+    return { stop: () => undefined };
+  }
+
+  const providerCommand = getProviderCommand({
+    ...input,
+    prompt: trimmedPrompt,
+  });
+
+  const child = spawn(providerCommand.command, providerCommand.args, {
+    shell: false,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  let finished = false;
+  let stopped = false;
+  const stderr: Buffer[] = [];
+
+  const timeout = setTimeout(() => {
+    stopped = true;
+    child.kill("SIGTERM");
+    callbacks.onError(
+      new LocalChatError(
+        `${input.providerId} took too long to respond. Try a shorter prompt.`,
+        504,
+      ),
+    );
+  }, processTimeoutMs);
+
+  function finish(callback: () => void) {
+    if (finished) {
+      return;
+    }
+
+    finished = true;
+    clearTimeout(timeout);
+    callback();
+  }
+
+  child.stdout.on("data", (chunk: Buffer) => {
+    callbacks.onStdout(chunk.toString("utf8"));
+  });
+
+  child.stderr.on("data", (chunk: Buffer) => {
+    stderr.push(chunk);
+    callbacks.onStderr(chunk.toString("utf8"));
+  });
+
+  child.on("error", (error: NodeJS.ErrnoException) => {
+    finish(() => {
+      if (error.code === "ENOENT") {
+        callbacks.onError(
+          new LocalChatError(`${input.providerId} is not installed or is not on PATH.`, 404),
+        );
+        return;
+      }
+
+      callbacks.onError(new LocalChatError(`${input.providerId} could not be started.`, 500));
+    });
+  });
+
+  child.on("close", (code) => {
+    finish(() => {
+      if (stopped) {
+        callbacks.onError(new LocalChatError(`${input.providerId} turn was stopped.`, 499));
+        return;
+      }
+
+      if (code === 0) {
+        callbacks.onComplete();
+        return;
+      }
+
+      const stderrText = Buffer.concat(stderr).toString("utf8");
+      callbacks.onError(createProviderExitError(input.providerId, code, stderrText));
+    });
+  });
+
+  child.stdin.end(providerCommand.stdin ?? "");
+
+  return {
+    stop: () => {
+      stopped = true;
+      child.kill("SIGTERM");
+    },
+  };
+}
+
+function createProviderExitError(
+  providerId: ChatProviderId,
+  code: number | null,
+  stderrText: string,
+) {
+  const cleanError = sanitizeErrorOutput(stderrText);
+  const likelyAuthIssue = /auth|login|api key|apikey|credential|token/i.test(stderrText);
+  const likelyNetworkIssue = /network|lookup|websocket|disconnected|request|url/i.test(stderrText);
+  const reason = likelyAuthIssue
+    ? " Check local CLI authentication."
+    : likelyNetworkIssue
+      ? " Check network access from the desktop app."
+      : " Check the local CLI in your terminal.";
+
+  return new LocalChatError(
+    `${providerId} exited with code ${code ?? "unknown"}.${reason}${
+      cleanError ? ` ${cleanError}` : ""
+    }`,
+    502,
+  );
 }

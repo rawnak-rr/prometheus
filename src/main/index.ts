@@ -1,20 +1,34 @@
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { join } from "node:path";
 
-import { LocalChatError, runLocalChat } from "@/lib/chat/local-chat-runner";
 import type {
+  ChatRuntimeEvent,
   ChatProviderId,
-  LocalChatRequest,
-  LocalChatResponse,
+  ChatStopTurnRequest,
+  ChatTurnStartRequest,
+  ChatTurnStartResult,
 } from "@/lib/chat/types";
 import { detectLocalProviders } from "@/lib/providers/local-provider-detection";
 import type { LocalProvidersResponse } from "@/lib/providers/types";
+import { createChatSessionManager } from "./chat/session-manager";
 
 const supportedChatProviders = new Set<ChatProviderId>(["claude", "codex"]);
 
 function isChatProviderId(value: unknown): value is ChatProviderId {
   return typeof value === "string" && supportedChatProviders.has(value as ChatProviderId);
 }
+
+function isRuntimeMode(value: unknown): value is ChatTurnStartRequest["runtimeMode"] {
+  return value === "chat" || value === "read-only" || value === "workspace-write";
+}
+
+function broadcastChatEvent(event: ChatRuntimeEvent) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send("chat:event", event);
+  }
+}
+
+const chatSessionManager = createChatSessionManager(broadcastChatEvent);
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -59,8 +73,13 @@ ipcMain.handle("providers:list", async (): Promise<LocalProvidersResponse> => {
 });
 
 ipcMain.handle(
-  "chat:send",
-  async (_event, request: Partial<LocalChatRequest>): Promise<LocalChatResponse> => {
+  "chat:list-sessions",
+  async () => chatSessionManager.listSessions(),
+);
+
+ipcMain.handle(
+  "chat:start-turn",
+  async (_event, request: Partial<ChatTurnStartRequest>): Promise<ChatTurnStartResult> => {
     if (!isChatProviderId(request.providerId)) {
       throw new Error("Unsupported provider.");
     }
@@ -69,28 +88,27 @@ ipcMain.handle(
       throw new Error("Prompt is required.");
     }
 
-    const startedAt = Date.now();
-
-    try {
-      const content = await runLocalChat({
-        providerId: request.providerId,
-        prompt: request.prompt,
-      });
-
-      return {
-        providerId: request.providerId,
-        content,
-        durationMs: Date.now() - startedAt,
-      };
-    } catch (error) {
-      if (error instanceof LocalChatError) {
-        throw new Error(error.message);
-      }
-
-      throw new Error("Local provider request failed.");
+    if (!isRuntimeMode(request.runtimeMode)) {
+      throw new Error("Unsupported runtime mode.");
     }
+
+    return chatSessionManager.startTurn({
+      sessionId: typeof request.sessionId === "string" ? request.sessionId : null,
+      providerId: request.providerId,
+      prompt: request.prompt,
+      model: typeof request.model === "string" ? request.model : null,
+      runtimeMode: request.runtimeMode,
+    });
   },
 );
+
+ipcMain.handle("chat:stop-turn", async (_event, request: Partial<ChatStopTurnRequest>) => {
+  if (typeof request.sessionId !== "string") {
+    throw new Error("Session id is required.");
+  }
+
+  chatSessionManager.stopTurn({ sessionId: request.sessionId });
+});
 
 void app.whenReady().then(() => {
   createWindow();

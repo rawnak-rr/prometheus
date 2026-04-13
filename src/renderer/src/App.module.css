@@ -58,6 +58,24 @@
   margin-bottom: 28px;
 }
 
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sectionHeader button {
+  border: 1px solid rgba(76, 201, 166, 0.42);
+  border-radius: 8px;
+  background: rgba(76, 201, 166, 0.13);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 9px;
+}
+
 .section h2,
 .graphPanel h2 {
   font-size: 13px;
@@ -87,6 +105,47 @@
 .listItem span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.chatList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.chatItem {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  color: var(--foreground);
+  cursor: pointer;
+  padding: 10px;
+  text-align: left;
+}
+
+.chatItem strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chatItem span,
+.emptyList {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.selectedChatItem {
+  border-color: rgba(76, 201, 166, 0.6);
+  background: rgba(76, 201, 166, 0.12);
+}
+
+.emptyList {
+  margin: 0;
 }
 
 .main {
