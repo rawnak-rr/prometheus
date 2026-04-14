@@ -1,6 +1,10 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+
 import {
   query,
   type CanUseTool,
+  type McpServerConfig,
   type PermissionResult,
   type PermissionUpdate,
   type SDKMessage,
@@ -176,6 +180,30 @@ function buildUserMessage(input: ClaudeTurnInput): SDKUserMessage {
   } as SDKUserMessage;
 }
 
+function getRepoMapMcpConfig(workspaceRoot: string): McpServerConfig | null {
+  if (process.env.REPO_MAP_MCP_DISABLED === "1") return null;
+  const overridePath = process.env.REPO_MAP_MCP_PATH?.trim();
+  const candidatePaths = [
+    overridePath,
+    path.resolve(workspaceRoot, "mcp-servers/repo-map/dist/index.js"),
+    path.resolve(process.cwd(), "mcp-servers/repo-map/dist/index.js"),
+  ].filter((p): p is string => !!p);
+
+  const serverPath = candidatePaths.find((p) => existsSync(p));
+  if (!serverPath) return null;
+
+  return {
+    type: "stdio",
+    command: process.execPath,
+    args: [serverPath],
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: "1",
+      REPO_MAP_ROOT: workspaceRoot,
+    } as Record<string, string>,
+  };
+}
+
 function getPermissionMode(runtimeMode: ChatRuntimeMode | undefined) {
   if (runtimeMode === "chat" || runtimeMode === "read-only") {
     return "dontAsk" as const;
@@ -346,6 +374,11 @@ async function runStream(session: ClaudeSession) {
       }
 
       if (message.type === "system" && message.subtype === "init") {
+        process.stderr.write(
+          `[claude-init] mcp_servers=${JSON.stringify(
+            (message as unknown as { mcp_servers?: unknown }).mcp_servers ?? [],
+          )}\n`,
+        );
         continue;
       }
 
@@ -440,10 +473,12 @@ function createSession(input: ClaudeTurnInput) {
   };
   const prompt = createAsyncPrompt(baseSession);
   const permissionMode = getPermissionMode(input.runtimeMode);
+  const workspaceRoot = input.workspaceRoot ?? process.cwd();
+  const repoMapServer = getRepoMapMcpConfig(workspaceRoot);
   const claudeQuery = query({
     prompt,
     options: {
-      cwd: input.workspaceRoot ?? process.cwd(),
+      cwd: workspaceRoot,
       ...(input.model?.trim() ? { model: input.model.trim() } : {}),
       permissionMode,
       tools: getTools(input.runtimeMode),
@@ -451,6 +486,7 @@ function createSession(input: ClaudeTurnInput) {
       canUseTool: createCanUseTool(baseSession),
       env: process.env,
       ...(input.workspaceRoot ? { additionalDirectories: [input.workspaceRoot] } : {}),
+      ...(repoMapServer ? { mcpServers: { "repo-map": repoMapServer } } : {}),
     },
   });
   const session: ClaudeSession = {
