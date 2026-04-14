@@ -12,6 +12,7 @@ import { detectLocalProviders } from "@/lib/providers/local-provider-detection";
 import type { LocalProvidersResponse } from "@/lib/providers/types";
 import { createChatSessionManager } from "./chat/session-manager";
 import { listWorkspaceFiles } from "./workspace/workspace-files";
+import { disposeCodexAppServerSessions } from "@/lib/chat/codex-app-server-runner";
 
 const supportedChatProviders = new Set<ChatProviderId>(["claude", "codex"]);
 
@@ -129,4 +130,8 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  disposeCodexAppServerSessions();
 });

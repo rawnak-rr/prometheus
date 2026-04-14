@@ -238,6 +238,7 @@ export function createChatSessionManager(broadcast: Broadcast) {
 
     const handle = startLocalChatTurn(
       {
+        sessionId: session.id,
         providerId: session.providerId,
         prompt,
         model: session.model,

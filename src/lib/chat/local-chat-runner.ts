@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 
 import type { ChatProviderId, ChatRuntimeMode } from "./types";
+import { startCodexAppServerTurn } from "./codex-app-server-runner";
 
 const maxPromptLength = 12_000;
 const processTimeoutMs = 120_000;
@@ -8,6 +9,7 @@ const escapeCharacter = String.fromCharCode(27);
 const ansiEscapePattern = new RegExp(`${escapeCharacter}\\[[0-?]*[ -/]*[@-~]`, "g");
 
 type LocalChatRun = {
+  sessionId?: string | null;
   providerId: ChatProviderId;
   prompt: string;
   model?: string | null;
@@ -234,6 +236,17 @@ export function startLocalChatTurn(input: LocalChatRun, callbacks: LocalChatTurn
       new LocalChatError(`Prompt is too long. Limit it to ${maxPromptLength} characters.`, 400),
     );
     return { stop: () => undefined };
+  }
+
+  if (input.providerId === "codex" && input.sessionId) {
+    return startCodexAppServerTurn(
+      {
+        ...input,
+        sessionId: input.sessionId,
+        prompt: trimmedPrompt,
+      },
+      callbacks,
+    );
   }
 
   const providerCommand = getProviderCommand({
