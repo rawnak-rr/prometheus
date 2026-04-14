@@ -4,6 +4,7 @@ import {
   startLocalChatTurn,
   type LocalChatTurnHandle,
 } from "@/lib/chat/local-chat-runner";
+import { respondToClaudeAgentApproval } from "@/lib/chat/claude-agent-runner";
 import { respondToCodexAppServerApproval } from "@/lib/chat/codex-app-server-runner";
 import type {
   ChatApprovalDecision,
@@ -340,6 +341,11 @@ export function createChatSessionManager(broadcast: Broadcast) {
 
     if (!approval) {
       throw new Error("Unknown approval request.");
+    }
+
+    if (session.providerId === "claude") {
+      respondToClaudeAgentApproval(session.id, request.approvalId, request.decision);
+      return;
     }
 
     respondToCodexAppServerApproval(session.id, request.approvalId, request.decision);

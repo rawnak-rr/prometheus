@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 
 import type { ChatProviderId, ChatRuntimeMode } from "./types";
+import { startClaudeAgentTurn } from "./claude-agent-runner";
 import { startCodexAppServerTurn } from "./codex-app-server-runner";
 import type { ChatApprovalDecision, ChatApprovalRequest } from "./types";
 
@@ -243,6 +244,17 @@ export function startLocalChatTurn(input: LocalChatRun, callbacks: LocalChatTurn
 
   if (input.providerId === "codex" && input.sessionId) {
     return startCodexAppServerTurn(
+      {
+        ...input,
+        sessionId: input.sessionId,
+        prompt: trimmedPrompt,
+      },
+      callbacks,
+    );
+  }
+
+  if (input.providerId === "claude" && input.sessionId) {
+    return startClaudeAgentTurn(
       {
         ...input,
         sessionId: input.sessionId,

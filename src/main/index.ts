@@ -11,9 +11,10 @@ import type {
 } from "@/lib/chat/types";
 import { detectLocalProviders } from "@/lib/providers/local-provider-detection";
 import type { LocalProvidersResponse } from "@/lib/providers/types";
+import { disposeClaudeAgentSessions } from "@/lib/chat/claude-agent-runner";
+import { disposeCodexAppServerSessions } from "@/lib/chat/codex-app-server-runner";
 import { createChatSessionManager } from "./chat/session-manager";
 import { listWorkspaceFiles } from "./workspace/workspace-files";
-import { disposeCodexAppServerSessions } from "@/lib/chat/codex-app-server-runner";
 
 const supportedChatProviders = new Set<ChatProviderId>(["claude", "codex"]);
 
@@ -162,5 +163,6 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  disposeClaudeAgentSessions();
   disposeCodexAppServerSessions();
 });
