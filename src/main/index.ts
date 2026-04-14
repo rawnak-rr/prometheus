@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type {
   ChatRuntimeEvent,
+  ChatApprovalResponseRequest,
   ChatProviderId,
   ChatStopTurnRequest,
   ChatTurnStartRequest,
@@ -115,6 +116,34 @@ ipcMain.handle("chat:stop-turn", async (_event, request: Partial<ChatStopTurnReq
 
   chatSessionManager.stopTurn({ sessionId: request.sessionId });
 });
+
+ipcMain.handle(
+  "chat:respond-to-approval",
+  async (_event, request: Partial<ChatApprovalResponseRequest>) => {
+    if (typeof request.sessionId !== "string") {
+      throw new Error("Session id is required.");
+    }
+
+    if (typeof request.approvalId !== "string") {
+      throw new Error("Approval id is required.");
+    }
+
+    if (
+      request.decision !== "accept" &&
+      request.decision !== "acceptForSession" &&
+      request.decision !== "decline" &&
+      request.decision !== "cancel"
+    ) {
+      throw new Error("Unsupported approval decision.");
+    }
+
+    chatSessionManager.respondToApproval({
+      sessionId: request.sessionId,
+      approvalId: request.approvalId,
+      decision: request.decision,
+    });
+  },
+);
 
 void app.whenReady().then(() => {
   createWindow();

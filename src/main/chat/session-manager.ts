@@ -4,10 +4,14 @@ import {
   startLocalChatTurn,
   type LocalChatTurnHandle,
 } from "@/lib/chat/local-chat-runner";
+import { respondToCodexAppServerApproval } from "@/lib/chat/codex-app-server-runner";
 import type {
+  ChatApprovalDecision,
+  ChatApprovalRequest,
   ChatMessage,
   ChatRuntimeEvent,
   ChatSession,
+  ChatApprovalResponseRequest,
   ChatStopTurnRequest,
   ChatTurnStartRequest,
   ChatTurnStartResult,
@@ -132,6 +136,7 @@ export function createChatSessionManager(broadcast: Broadcast) {
       updatedAt: createdAt,
       activeTurnId: null,
       lastError: null,
+      pendingApprovals: [],
     };
 
     sessions.set(session.id, session);
@@ -169,6 +174,7 @@ export function createChatSessionManager(broadcast: Broadcast) {
     session.status = "idle";
     session.activeTurnId = null;
     session.lastError = null;
+    session.pendingApprovals = [];
     session.updatedAt = now();
     runningTurns.delete(session.id);
 
@@ -196,6 +202,7 @@ export function createChatSessionManager(broadcast: Broadcast) {
     session.status = "error";
     session.activeTurnId = null;
     session.lastError = error;
+    session.pendingApprovals = [];
     session.updatedAt = now();
     runningTurns.delete(session.id);
 
@@ -259,6 +266,9 @@ export function createChatSessionManager(broadcast: Broadcast) {
         },
         onComplete: () => markCompleted(session, turnId, assistantMessage.id),
         onError: (error) => markFailed(session, turnId, assistantMessage.id, error.message),
+        onApprovalRequest: (approval) => addApprovalRequest(session, turnId, approval),
+        onApprovalResolved: (approvalId, decision) =>
+          resolveApprovalRequest(session, turnId, approvalId, decision),
       },
     );
 
@@ -285,9 +295,60 @@ export function createChatSessionManager(broadcast: Broadcast) {
     runningTurn.handle.stop();
   }
 
+  function addApprovalRequest(session: ChatSession, turnId: string, approval: ChatApprovalRequest) {
+    session.pendingApprovals = [
+      ...session.pendingApprovals.filter((candidate) => candidate.id !== approval.id),
+      approval,
+    ];
+    session.updatedAt = now();
+
+    emit({
+      type: "approval.requested",
+      sessionId: session.id,
+      turnId,
+      approval,
+      session: cloneSession(session),
+    });
+  }
+
+  function resolveApprovalRequest(
+    session: ChatSession,
+    turnId: string,
+    approvalId: string,
+    decision: ChatApprovalDecision,
+  ) {
+    session.pendingApprovals = session.pendingApprovals.filter(
+      (approval) => approval.id !== approvalId,
+    );
+    session.updatedAt = now();
+
+    emit({
+      type: "approval.resolved",
+      sessionId: session.id,
+      turnId,
+      approvalId,
+      decision,
+      session: cloneSession(session),
+    });
+  }
+
+  function respondToApproval(request: ChatApprovalResponseRequest) {
+    const session = getSession(request.sessionId);
+    const approval = session.pendingApprovals.find(
+      (candidate) => candidate.id === request.approvalId,
+    );
+
+    if (!approval) {
+      throw new Error("Unknown approval request.");
+    }
+
+    respondToCodexAppServerApproval(session.id, request.approvalId, request.decision);
+  }
+
   return {
     listSessions,
     startTurn,
     stopTurn,
+    respondToApproval,
   };
 }

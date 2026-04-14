@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 
 import type { ChatProviderId, ChatRuntimeMode } from "./types";
 import { startCodexAppServerTurn } from "./codex-app-server-runner";
+import type { ChatApprovalDecision, ChatApprovalRequest } from "./types";
 
 const maxPromptLength = 12_000;
 const processTimeoutMs = 120_000;
@@ -23,6 +24,8 @@ export type LocalChatTurnCallbacks = {
   onStderr: (chunk: string) => void;
   onComplete: () => void;
   onError: (error: LocalChatError) => void;
+  onApprovalRequest?: (approval: ChatApprovalRequest) => void;
+  onApprovalResolved?: (approvalId: string, decision: ChatApprovalDecision) => void;
 };
 
 export type LocalChatTurnHandle = {

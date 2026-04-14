@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import type {
   ChatBridge,
+  ChatApprovalResponseRequest,
   ChatRuntimeEvent,
   ChatStopTurnRequest,
   ChatTurnStartRequest,
@@ -26,6 +27,8 @@ const api = {
       ipcRenderer.invoke("chat:start-turn", request) as Promise<ChatTurnStartResult>,
     stopTurn: (request: ChatStopTurnRequest) =>
       ipcRenderer.invoke("chat:stop-turn", request) as Promise<void>,
+    respondToApproval: (request: ChatApprovalResponseRequest) =>
+      ipcRenderer.invoke("chat:respond-to-approval", request) as Promise<void>,
     onEvent: (listener: (event: ChatRuntimeEvent) => void) => {
       const wrappedListener = (_event: Electron.IpcRendererEvent, event: ChatRuntimeEvent) => {
         listener(event);

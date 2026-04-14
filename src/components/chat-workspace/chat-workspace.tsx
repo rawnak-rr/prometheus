@@ -1,6 +1,8 @@
 import { FormEvent, useMemo, useState } from "react";
 
 import type {
+  ChatApprovalDecision,
+  ChatApprovalRequest,
   ChatMessage,
   ChatProviderId,
   ChatRuntimeMode,
@@ -321,6 +323,70 @@ function ChatMessageArticle({ message }: { message: ChatMessage }) {
   );
 }
 
+function ApprovalRequestPanel({
+  approval,
+  pendingCount,
+  isResponding,
+  onRespond,
+}: {
+  approval: ChatApprovalRequest;
+  pendingCount: number;
+  isResponding: boolean;
+  onRespond: (approvalId: string, decision: ChatApprovalDecision) => void;
+}) {
+  const detail = approval.detail ?? approval.command ?? approval.path ?? approval.reason;
+
+  return (
+    <div className={styles.approvalPanel}>
+      <div className={styles.approvalHeader}>
+        <span>pending approval</span>
+        <strong>{approval.title}</strong>
+        {pendingCount > 1 ? <span>{pendingCount} pending</span> : null}
+      </div>
+
+      {detail ? <pre className={styles.approvalDetail}>{detail}</pre> : null}
+
+      <div className={styles.approvalMeta}>
+        {approval.cwd ? <span>cwd: {approval.cwd}</span> : null}
+        {approval.reason ? <span>{approval.reason}</span> : null}
+      </div>
+
+      <div className={styles.approvalActions}>
+        <button
+          type="button"
+          disabled={isResponding}
+          onClick={() => onRespond(approval.id, "cancel")}
+        >
+          cancel turn
+        </button>
+        <button
+          className={styles.declineApproval}
+          type="button"
+          disabled={isResponding}
+          onClick={() => onRespond(approval.id, "decline")}
+        >
+          decline
+        </button>
+        <button
+          type="button"
+          disabled={isResponding}
+          onClick={() => onRespond(approval.id, "acceptForSession")}
+        >
+          allow session
+        </button>
+        <button
+          className={styles.acceptApproval}
+          type="button"
+          disabled={isResponding}
+          onClick={() => onRespond(approval.id, "accept")}
+        >
+          approve once
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ChatWorkspace({
   session,
   activeFilePath,
@@ -333,12 +399,15 @@ export function ChatWorkspace({
   const [prompt, setPrompt] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [respondingApprovalId, setRespondingApprovalId] = useState<string | null>(null);
   const isRunning = session?.status === "running" || isStarting;
   const selectedProviderId = session?.providerId ?? providerId;
   const selectedRuntimeMode = session?.runtimeMode ?? runtimeMode;
   const selectedModel = session?.model ?? (model.trim() || null);
   const providerLocked = Boolean(session && session.messages.length > 0);
   const messages = session?.messages ?? [];
+  const pendingApprovals = session?.pendingApprovals ?? [];
+  const activeApproval = pendingApprovals[0] ?? null;
   const title = session?.title ?? "new thread";
   const subtitle = useMemo(() => {
     const provider = session?.providerId ?? providerId;
@@ -394,6 +463,31 @@ export function ChatWorkspace({
     }
 
     await window.prometheus.chat.stopTurn({ sessionId: session.id });
+  }
+
+  async function respondToApproval(approvalId: string, decision: ChatApprovalDecision) {
+    if (!session || respondingApprovalId) {
+      return;
+    }
+
+    setRespondingApprovalId(approvalId);
+    setError(null);
+
+    try {
+      await window.prometheus.chat.respondToApproval({
+        sessionId: session.id,
+        approvalId,
+        decision,
+      });
+    } catch (approvalError) {
+      setError(
+        approvalError instanceof Error
+          ? approvalError.message
+          : "Approval response failed.",
+      );
+    } finally {
+      setRespondingApprovalId(null);
+    }
   }
 
   return (
@@ -476,6 +570,14 @@ export function ChatWorkspace({
       </div>
 
       <footer className={styles.composer}>
+        {activeApproval ? (
+          <ApprovalRequestPanel
+            approval={activeApproval}
+            pendingCount={pendingApprovals.length}
+            isResponding={respondingApprovalId === activeApproval.id}
+            onRespond={(approvalId, decision) => void respondToApproval(approvalId, decision)}
+          />
+        ) : null}
         <form className={styles.composerBox} onSubmit={sendMessage}>
           <textarea
             aria-label="Message"

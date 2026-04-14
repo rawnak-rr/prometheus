@@ -21,6 +21,7 @@
   display: grid;
   align-content: start;
   gap: 18px;
+  min-height: 0;
   min-width: 0;
   overflow: auto;
   border-right: 1px solid var(--border);
@@ -29,6 +30,7 @@
 
 .graphPanel {
   display: grid;
+  min-height: 0;
   min-width: 0;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
@@ -291,7 +293,10 @@
 }
 
 .main {
+  display: grid;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
   background: var(--background);
 }
 
@@ -341,6 +346,7 @@
     height: auto;
     min-height: 100vh;
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .workspaceGraphCollapsed {

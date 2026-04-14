@@ -1,7 +1,8 @@
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import readline from "node:readline";
 
-import type { ChatRuntimeMode } from "./types";
+import type { ChatApprovalDecision, ChatApprovalKind, ChatApprovalRequest, ChatRuntimeMode } from "./types";
 import type { LocalChatTurnCallbacks, LocalChatTurnHandle } from "./local-chat-runner";
 
 type JsonRpcId = string | number;
@@ -53,8 +54,14 @@ type CodexSession = {
   providerThreadId: string | null;
   activeTurnId: string | null;
   activeCallbacks: LocalChatTurnCallbacks | null;
+  pendingApprovals: Map<string, PendingApproval>;
   ready: Promise<void>;
   closed: boolean;
+};
+
+type PendingApproval = {
+  approval: ChatApprovalRequest;
+  jsonRpcId: JsonRpcId;
 };
 
 const sessions = new Map<string, CodexSession>();
@@ -77,6 +84,12 @@ function readString(value: unknown, key: string) {
   const object = readObject(value);
   const candidate = object?.[key];
   return typeof candidate === "string" ? candidate : undefined;
+}
+
+function readArray(value: unknown, key: string) {
+  const object = readObject(value);
+  const candidate = object?.[key];
+  return Array.isArray(candidate) ? candidate : undefined;
 }
 
 function getCodexSandbox(runtimeMode: ChatRuntimeMode) {
@@ -194,20 +207,90 @@ function handleResponse(session: CodexSession, response: JsonRpcResponse) {
   pending.resolve(response.result);
 }
 
+function requestKindForMethod(method: string): ChatApprovalKind | null {
+  switch (method) {
+    case "item/commandExecution/requestApproval":
+    case "execCommandApproval":
+      return "command";
+    case "item/fileRead/requestApproval":
+      return "file-read";
+    case "item/fileChange/requestApproval":
+    case "applyPatchApproval":
+      return "file-change";
+    default:
+      return null;
+  }
+}
+
+function approvalTitle(kind: ChatApprovalKind) {
+  switch (kind) {
+    case "command":
+      return "Command approval";
+    case "file-read":
+      return "File read approval";
+    case "file-change":
+      return "File change approval";
+  }
+}
+
+function approvalDetail(kind: ChatApprovalKind, params: Record<string, unknown> | undefined) {
+  const command = readString(params, "command");
+  const cwd = readString(params, "cwd");
+  const reason = readString(params, "reason");
+  const grantRoot = readString(params, "grantRoot");
+  const path = readString(params, "path") ?? grantRoot;
+
+  if (command) {
+    return cwd ? `${command}\n\ncwd: ${cwd}` : command;
+  }
+
+  if (path) {
+    return reason ? `${path}\n\n${reason}` : path;
+  }
+
+  const actions = readArray(params, "commandActions");
+  const actionSummary = actions
+    ?.map((action) => readString(action, "command") ?? readString(action, "path"))
+    .filter((value): value is string => Boolean(value))
+    .join("\n");
+
+  return actionSummary || reason || approvalTitle(kind);
+}
+
+function buildApprovalRequest(request: JsonRpcRequest, kind: ChatApprovalKind): ChatApprovalRequest {
+  const params = readObject(request.params);
+  const approvalId = readString(params, "approvalId") ?? randomUUID();
+  const reason = readString(params, "reason") ?? null;
+  const grantRoot = readString(params, "grantRoot");
+  const command = readString(params, "command") ?? null;
+  const path = readString(params, "path") ?? grantRoot ?? null;
+
+  return {
+    id: approvalId,
+    kind,
+    method: request.method,
+    turnId: readString(params, "turnId") ?? null,
+    itemId: readString(params, "itemId") ?? null,
+    title: approvalTitle(kind),
+    detail: approvalDetail(kind, params),
+    command,
+    cwd: readString(params, "cwd") ?? null,
+    path,
+    reason,
+    createdAt: new Date().toISOString(),
+  };
+}
+
 function handleRequest(session: CodexSession, request: JsonRpcRequest) {
-  if (
-    request.method === "item/commandExecution/requestApproval" ||
-    request.method === "item/fileChange/requestApproval" ||
-    request.method === "execCommandApproval" ||
-    request.method === "applyPatchApproval"
-  ) {
-    writeMessage(session, {
-      id: request.id,
-      result: {
-        decision: "decline",
-      },
+  const requestKind = requestKindForMethod(request.method);
+
+  if (requestKind) {
+    const approval = buildApprovalRequest(request, requestKind);
+    session.pendingApprovals.set(approval.id, {
+      approval,
+      jsonRpcId: request.id,
     });
-    session.activeCallbacks?.onStderr(`Codex requested ${request.method}; Prometheus declined it because approval UI is not implemented yet.\n`);
+    session.activeCallbacks?.onApprovalRequest?.(approval);
     return;
   }
 
@@ -218,6 +301,37 @@ function handleRequest(session: CodexSession, request: JsonRpcRequest) {
       message: `Unsupported server request: ${request.method}`,
     },
   });
+}
+
+function resolveApprovalResult(decision: ChatApprovalDecision) {
+  return {
+    decision,
+  };
+}
+
+export function respondToCodexAppServerApproval(
+  sessionId: string,
+  approvalId: string,
+  decision: ChatApprovalDecision,
+) {
+  const session = sessions.get(sessionId);
+
+  if (!session || session.closed) {
+    throw new Error("Codex session is not running.");
+  }
+
+  const pendingApproval = session.pendingApprovals.get(approvalId);
+
+  if (!pendingApproval) {
+    throw new Error("Unknown approval request.");
+  }
+
+  session.pendingApprovals.delete(approvalId);
+  writeMessage(session, {
+    id: pendingApproval.jsonRpcId,
+    result: resolveApprovalResult(decision),
+  });
+  session.activeCallbacks?.onApprovalResolved?.(approvalId, decision);
 }
 
 function handleNotification(session: CodexSession, notification: JsonRpcNotification) {
@@ -375,6 +489,7 @@ function createSession(input: CodexTurnInput) {
     child,
     output,
     pending: new Map(),
+    pendingApprovals: new Map(),
     nextRequestId: 1,
     cwd: input.workspaceRoot ?? process.cwd(),
     model: input.model?.trim() || null,
@@ -498,6 +613,7 @@ export function disposeCodexAppServerSessions() {
       pending.reject(new Error("codex app-server session disposed."));
     }
     session.pending.clear();
+    session.pendingApprovals.clear();
     if (!session.child.killed) {
       killChildProcess(session.child);
     }

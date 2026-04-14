@@ -8,6 +8,25 @@ export type ChatRuntimeMode = "chat" | "read-only" | "workspace-write";
 
 export type ChatSessionScope = "repo" | "file" | "directory";
 
+export type ChatApprovalKind = "command" | "file-read" | "file-change";
+
+export type ChatApprovalDecision = "accept" | "acceptForSession" | "decline" | "cancel";
+
+export type ChatApprovalRequest = {
+  id: string;
+  kind: ChatApprovalKind;
+  method: string;
+  turnId: string | null;
+  itemId: string | null;
+  title: string;
+  detail: string | null;
+  command: string | null;
+  cwd: string | null;
+  path: string | null;
+  reason: string | null;
+  createdAt: string;
+};
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
@@ -32,6 +51,7 @@ export type ChatSession = {
   updatedAt: string;
   activeTurnId: string | null;
   lastError: string | null;
+  pendingApprovals: ChatApprovalRequest[];
 };
 
 export type ChatTurnStartRequest = {
@@ -51,6 +71,12 @@ export type ChatTurnStartResult = {
 
 export type ChatStopTurnRequest = {
   sessionId: string;
+};
+
+export type ChatApprovalResponseRequest = {
+  sessionId: string;
+  approvalId: string;
+  decision: ChatApprovalDecision;
 };
 
 export type ChatRuntimeEvent =
@@ -90,6 +116,21 @@ export type ChatRuntimeEvent =
       turnId: string;
       text: string;
       session: ChatSession;
+    }
+  | {
+      type: "approval.requested";
+      sessionId: string;
+      turnId: string;
+      approval: ChatApprovalRequest;
+      session: ChatSession;
+    }
+  | {
+      type: "approval.resolved";
+      sessionId: string;
+      turnId: string;
+      approvalId: string;
+      decision: ChatApprovalDecision;
+      session: ChatSession;
     };
 
 export type LocalChatRequest = ChatTurnStartRequest;
@@ -100,5 +141,6 @@ export type ChatBridge = {
   listSessions: () => Promise<ChatSession[]>;
   startTurn: (request: ChatTurnStartRequest) => Promise<ChatTurnStartResult>;
   stopTurn: (request: ChatStopTurnRequest) => Promise<void>;
+  respondToApproval: (request: ChatApprovalResponseRequest) => Promise<void>;
   onEvent: (listener: (event: ChatRuntimeEvent) => void) => () => void;
 };
