@@ -492,13 +492,44 @@ export function ChatWorkspace({
 
   return (
     <section className={styles.workspace} aria-label="Chat workspace">
-      <header className={styles.header}>
-        <div className={styles.titleBlock}>
-          <span className={styles.kicker}>{session ? "thread" : "draft"}</span>
-          <h2>{title}</h2>
-          <p>{subtitle}</p>
-        </div>
+      <div className={styles.thread}>
+        {messages.length === 0 ? (
+          <div className={styles.emptyState}>
+            <strong>{title}</strong>
+            <p>{subtitle}</p>
+          </div>
+        ) : (
+          messages.map((message) => <ChatMessageArticle key={message.id} message={message} />)
+        )}
 
+        {isStarting ? (
+          <article className={`${styles.message} ${styles.assistant}`}>
+            <div className={styles.messageHeader}>
+              <strong>assistant</strong>
+              <span className={styles.providerBadge}>
+                {providerLabels[selectedProviderId].toLowerCase()}
+              </span>
+            </div>
+            <div className={styles.messageColumn}>
+              <div className={styles.messageBody}>
+                <p className={styles.textBlock}>
+                  starting {providerLabels[selectedProviderId].toLowerCase()}...
+                </p>
+              </div>
+            </div>
+          </article>
+        ) : null}
+      </div>
+
+      <footer className={styles.composer}>
+        {activeApproval ? (
+          <ApprovalRequestPanel
+            approval={activeApproval}
+            pendingCount={pendingApprovals.length}
+            isResponding={respondingApprovalId === activeApproval.id}
+            onRespond={(approvalId, decision) => void respondToApproval(approvalId, decision)}
+          />
+        ) : null}
         <div className={styles.controls}>
           <div className={styles.control}>
             <label htmlFor="provider">Provider</label>
@@ -538,46 +569,6 @@ export function ChatWorkspace({
             />
           </div>
         </div>
-      </header>
-
-      <div className={styles.thread}>
-        {messages.length === 0 ? (
-          <div className={styles.emptyState}>
-            <strong>No messages yet.</strong>
-            <p>Send a prompt to start a local agent thread.</p>
-          </div>
-        ) : (
-          messages.map((message) => <ChatMessageArticle key={message.id} message={message} />)
-        )}
-
-        {isStarting ? (
-          <article className={`${styles.message} ${styles.assistant}`}>
-            <div className={styles.messageHeader}>
-              <strong>assistant</strong>
-              <span className={styles.providerBadge}>
-                {providerLabels[selectedProviderId].toLowerCase()}
-              </span>
-            </div>
-            <div className={styles.messageColumn}>
-              <div className={styles.messageBody}>
-                <p className={styles.textBlock}>
-                  starting {providerLabels[selectedProviderId].toLowerCase()}...
-                </p>
-              </div>
-            </div>
-          </article>
-        ) : null}
-      </div>
-
-      <footer className={styles.composer}>
-        {activeApproval ? (
-          <ApprovalRequestPanel
-            approval={activeApproval}
-            pendingCount={pendingApprovals.length}
-            isResponding={respondingApprovalId === activeApproval.id}
-            onRespond={(approvalId, decision) => void respondToApproval(approvalId, decision)}
-          />
-        ) : null}
         <form className={styles.composerBox} onSubmit={sendMessage}>
           <textarea
             aria-label="Message"

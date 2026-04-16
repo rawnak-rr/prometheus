@@ -13,6 +13,11 @@ export type WorkspaceListFilesResponse = {
   source: "git" | "filesystem";
 };
 
+export type WorkspaceListFilesRequest = {
+  workspaceRoot?: string | null;
+};
+
 export type WorkspaceBridge = {
-  listFiles: () => Promise<WorkspaceListFilesResponse>;
+  listFiles: (request?: WorkspaceListFilesRequest) => Promise<WorkspaceListFilesResponse>;
+  openFolder: () => Promise<WorkspaceListFilesResponse | null>;
 };

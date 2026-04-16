@@ -12,3 +12,4 @@ dist
 coverage
 *.md
 tsconfig.tsbuildinfo
+.ui-inspo/

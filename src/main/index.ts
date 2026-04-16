@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
-import { join } from "node:path";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 import type {
   ChatRuntimeEvent,
@@ -14,6 +15,7 @@ import type { LocalProvidersResponse } from "@/lib/providers/types";
 import { disposeClaudeAgentSessions } from "@/lib/chat/claude-agent-runner";
 import { disposeCodexAppServerSessions } from "@/lib/chat/codex-app-server-runner";
 import { createChatSessionManager } from "./chat/session-manager";
+import { commitGitChanges, getGitStatus, pushGitChanges } from "./git/git-actions";
 import { listWorkspaceFiles } from "./workspace/workspace-files";
 
 const supportedChatProviders = new Set<ChatProviderId>(["claude", "codex"]);
@@ -33,6 +35,52 @@ function broadcastChatEvent(event: ChatRuntimeEvent) {
 }
 
 const chatSessionManager = createChatSessionManager(broadcastChatEvent);
+
+function nearestAncestorWith(directoryPath: string, entryName: string) {
+  let currentPath = directoryPath;
+
+  while (true) {
+    if (existsSync(join(currentPath, entryName))) {
+      return currentPath;
+    }
+
+    const parentPath = dirname(currentPath);
+
+    if (parentPath === currentPath) {
+      return null;
+    }
+
+    currentPath = parentPath;
+  }
+}
+
+function defaultWorkspaceRoot() {
+  const candidates = [process.cwd(), app.getAppPath(), __dirname];
+
+  for (const candidate of candidates) {
+    const gitRoot = nearestAncestorWith(candidate, ".git");
+
+    if (gitRoot) {
+      return gitRoot;
+    }
+  }
+
+  for (const candidate of candidates) {
+    const packageRoot = nearestAncestorWith(candidate, "package.json");
+
+    if (packageRoot) {
+      return packageRoot;
+    }
+  }
+
+  return process.cwd();
+}
+
+function workspaceRootFromRequest(request?: { workspaceRoot?: unknown }) {
+  return typeof request?.workspaceRoot === "string" && request.workspaceRoot.trim()
+    ? request.workspaceRoot
+    : defaultWorkspaceRoot();
+}
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -76,7 +124,38 @@ ipcMain.handle("providers:list", async (): Promise<LocalProvidersResponse> => {
   };
 });
 
-ipcMain.handle("workspace:list-files", async () => listWorkspaceFiles());
+ipcMain.handle("workspace:list-files", async (_event, request?: { workspaceRoot?: unknown }) => {
+  return listWorkspaceFiles(workspaceRootFromRequest(request));
+});
+
+ipcMain.handle("workspace:open-folder", async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ["openDirectory"],
+    title: "Open folder in Prometheus",
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  return listWorkspaceFiles(result.filePaths[0]);
+});
+
+ipcMain.handle("git:status", async (_event, request?: { workspaceRoot?: unknown }) => {
+  return getGitStatus(workspaceRootFromRequest(request));
+});
+
+ipcMain.handle("git:commit", async (_event, request?: { workspaceRoot?: unknown; message?: unknown }) => {
+  if (typeof request?.message !== "string") {
+    throw new Error("Commit message is required.");
+  }
+
+  return commitGitChanges(workspaceRootFromRequest(request), request.message);
+});
+
+ipcMain.handle("git:push", async (_event, request?: { workspaceRoot?: unknown }) => {
+  return pushGitChanges(workspaceRootFromRequest(request));
+});
 
 ipcMain.handle(
   "chat:list-sessions",

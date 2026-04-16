@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChatWorkspace } from "@/components/chat-workspace/chat-workspace";
 import { ProjectGraph } from "@/components/project-graph/project-graph";
@@ -7,6 +7,7 @@ import {
   sampleProjectGraphNodes,
 } from "@/lib/graph/sample-project-graph";
 import type { ChatRuntimeEvent, ChatSession } from "@/lib/chat/types";
+import type { GitStatusResponse } from "@/lib/git/types";
 import type { WorkspaceEntry } from "@/lib/workspace/types";
 import styles from "./App.module.css";
 
@@ -24,6 +25,26 @@ function upsertSession(sessions: ChatSession[], session: ChatSession) {
 
 function providerLabel(session: ChatSession) {
   return session.providerId === "claude" ? "Claude" : "Codex";
+}
+
+function workspaceLabel(workspaceRoot: string | null) {
+  if (!workspaceRoot) {
+    return "No folder";
+  }
+
+  return workspaceRoot.split(/[\\/]/).filter(Boolean).at(-1) ?? workspaceRoot;
+}
+
+function gitSummaryLabel(status: GitStatusResponse | null) {
+  if (!status?.isRepository) {
+    return "No repository";
+  }
+
+  if (status.summary.changed === 0) {
+    return "Clean";
+  }
+
+  return `${status.summary.changed} changed`;
 }
 
 type WorkspaceTreeNode = WorkspaceEntry & {
@@ -90,6 +111,10 @@ export function App() {
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [gitStatus, setGitStatus] = useState<GitStatusResponse | null>(null);
+  const [gitMessage, setGitMessage] = useState<string | null>(null);
+  const [isGitBusy, setIsGitBusy] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isGraphCollapsed, setIsGraphCollapsed] = useState(false);
   const selectedSession = useMemo(
     () => sessions.find((session) => session.id === selectedSessionId) ?? null,
@@ -149,33 +174,54 @@ export function App() {
     };
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
+  const refreshGitStatus = useCallback(async (root: string | null) => {
+    if (!root) {
+      setGitStatus(null);
+      return;
+    }
 
-    window.prometheus.workspace
-      .listFiles()
-      .then((workspace) => {
-        if (!isMounted) {
-          return;
-        }
+    const status = await window.prometheus.git.getStatus({ workspaceRoot: root });
+    setGitStatus(status);
+  }, []);
+
+  const loadWorkspace = useCallback(
+    async (root?: string | null) => {
+      try {
+        const workspace = await window.prometheus.workspace.listFiles({ workspaceRoot: root });
 
         setWorkspaceRoot(workspace.workspaceRoot);
         setWorkspaceEntries(workspace.entries);
         setExpandedPaths(initialExpandedPaths(workspace.entries));
+        setActiveFilePath(null);
         setWorkspaceError(null);
-      })
-      .catch((error) => {
-        if (!isMounted) {
-          return;
-        }
-
+        await refreshGitStatus(workspace.workspaceRoot);
+      } catch (error) {
         setWorkspaceError(
           error instanceof Error ? error.message : "Failed to load workspace files.",
         );
-      });
+      }
+    },
+    [refreshGitStatus],
+  );
+
+  useEffect(() => {
+    void loadWorkspace();
+  }, [loadWorkspace]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== "b" || (!event.metaKey && !event.ctrlKey)) {
+        return;
+      }
+
+      event.preventDefault();
+      setIsSidebarCollapsed((current) => !current);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      isMounted = false;
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
@@ -196,6 +242,77 @@ export function App() {
 
       return next;
     });
+  }
+
+  async function openFolder() {
+    try {
+      const workspace = await window.prometheus.workspace.openFolder();
+
+      if (!workspace) {
+        return;
+      }
+
+      setWorkspaceRoot(workspace.workspaceRoot);
+      setWorkspaceEntries(workspace.entries);
+      setExpandedPaths(initialExpandedPaths(workspace.entries));
+      setActiveFilePath(null);
+      setSelectedSessionId(null);
+      setWorkspaceError(null);
+      await refreshGitStatus(workspace.workspaceRoot);
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Failed to open folder.");
+    }
+  }
+
+  async function commitChanges() {
+    if (!workspaceRoot || isGitBusy) {
+      return;
+    }
+
+    const message = window.prompt("Commit message");
+
+    if (!message?.trim()) {
+      return;
+    }
+
+    setIsGitBusy(true);
+    setGitMessage(null);
+
+    try {
+      const result = await window.prometheus.git.commit({
+        workspaceRoot,
+        message,
+      });
+
+      setGitStatus(result.status);
+      setGitMessage(result.output || "Committed changes.");
+    } catch (error) {
+      setGitMessage(error instanceof Error ? error.message : "Commit failed.");
+      await refreshGitStatus(workspaceRoot);
+    } finally {
+      setIsGitBusy(false);
+    }
+  }
+
+  async function pushChanges() {
+    if (!workspaceRoot || isGitBusy) {
+      return;
+    }
+
+    setIsGitBusy(true);
+    setGitMessage(null);
+
+    try {
+      const result = await window.prometheus.git.push({ workspaceRoot });
+
+      setGitStatus(result.status);
+      setGitMessage(result.output || "Pushed changes.");
+    } catch (error) {
+      setGitMessage(error instanceof Error ? error.message : "Push failed.");
+      await refreshGitStatus(workspaceRoot);
+    } finally {
+      setIsGitBusy(false);
+    }
   }
 
   function renderWorkspaceNode(node: WorkspaceTreeNode, depth = 0) {
@@ -255,10 +372,80 @@ export function App() {
   }
 
   return (
-    <main className={`${styles.workspace} ${isGraphCollapsed ? styles.workspaceGraphCollapsed : ""}`}>
+    <main
+      className={`${styles.workspace} ${isGraphCollapsed ? styles.workspaceGraphCollapsed : ""} ${
+        isSidebarCollapsed ? styles.workspaceSidebarCollapsed : ""
+      }`}
+    >
+      <header className={styles.topBar}>
+        <div className={styles.workspaceIdentity}>
+          <button
+            className={styles.iconButton}
+            type="button"
+            aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title="Toggle sidebar (Cmd/Ctrl+B)"
+            onClick={() => setIsSidebarCollapsed((current) => !current)}
+          >
+            {isSidebarCollapsed ? ">" : "<"}
+          </button>
+          <div className={styles.workspaceTitle}>
+            <strong>{workspaceLabel(workspaceRoot)}</strong>
+            <span>{workspaceRoot ?? "Open a folder to start"}</span>
+          </div>
+        </div>
+
+        <div className={styles.gitBar} aria-label="Git actions">
+          {gitStatus?.isRepository ? (
+            <div className={styles.gitMeta}>
+              <span className={styles.gitBranch}>{gitStatus.branch ?? "git"}</span>
+              <span className={styles.gitStatus}>
+                {gitSummaryLabel(gitStatus)}
+                {gitStatus.ahead ? ` +${gitStatus.ahead}` : ""}
+                {gitStatus.behind ? ` -${gitStatus.behind}` : ""}
+              </span>
+            </div>
+          ) : (
+            <div className={styles.gitMeta}>
+              <span className={styles.gitBranch}>git</span>
+              <span className={styles.gitStatus}>
+                {gitStatus?.lastError ? "Repository unavailable" : "No repository"}
+              </span>
+            </div>
+          )}
+          <button className={styles.ghostButton} type="button" onClick={() => void openFolder()}>
+            Open Folder
+          </button>
+          <button
+            className={styles.ghostButton}
+            type="button"
+            disabled={isGitBusy || !workspaceRoot}
+            onClick={() => void refreshGitStatus(workspaceRoot)}
+          >
+            Status
+          </button>
+          <button
+            className={styles.commitButton}
+            type="button"
+            disabled={isGitBusy || !gitStatus?.isRepository || gitStatus.summary.changed === 0}
+            onClick={() => void commitChanges()}
+          >
+            Commit
+          </button>
+          <button
+            className={styles.ghostButton}
+            type="button"
+            disabled={isGitBusy || !gitStatus?.isRepository}
+            onClick={() => void pushChanges()}
+          >
+            Push
+          </button>
+        </div>
+      </header>
+
       <aside className={styles.sidebar} aria-label="Project navigation">
         <div className={styles.brand}>
-          <span className={styles.appName}>prometheus</span>
+          <span className={styles.appName}>{workspaceLabel(workspaceRoot)}</span>
+          <span className={styles.sidebarHint}>Cmd/Ctrl+B</span>
         </div>
 
         <section className={styles.section}>
@@ -267,15 +454,27 @@ export function App() {
             <button
               className={styles.commandButton}
               type="button"
-              onClick={() => {
-                setActiveFilePath(null);
-                setSelectedSessionId(null);
-              }}
+              onClick={() => void openFolder()}
             >
-              repo
+              open
             </button>
           </div>
+          {gitMessage ? <p className={styles.inlineNotice}>{gitMessage}</p> : null}
           {workspaceError ? <p className={styles.emptyList}>{workspaceError}</p> : null}
+          {workspaceRoot ? (
+            <button
+              className={`${styles.fileRow} ${activeFilePath === null ? styles.selectedFileRow : ""}`}
+              type="button"
+              onClick={() => {
+                setActiveFilePath(null);
+                setSelectedSessionId(repoSessions[0]?.id ?? null);
+              }}
+            >
+              <span className={styles.fileIcon}>@</span>
+              <span className={styles.fileName}>{workspaceLabel(workspaceRoot)}</span>
+              <span className={styles.fileChatCount}>{repoSessions.length || ""}</span>
+            </button>
+          ) : null}
           <div className={styles.fileTree}>
             {workspaceTree.length === 0 && !workspaceError ? (
               <p className={styles.emptyList}>Loading files...</p>

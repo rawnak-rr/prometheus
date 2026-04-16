@@ -10,6 +10,7 @@ import type {
   ChatSession,
 } from "@/lib/chat/types";
 import type { LocalProvidersResponse } from "@/lib/providers/types";
+import type { GitBridge, GitActionResponse, GitStatusResponse } from "@/lib/git/types";
 import type { WorkspaceBridge, WorkspaceListFilesResponse } from "@/lib/workspace/types";
 
 const api = {
@@ -17,9 +18,19 @@ const api = {
     list: () => ipcRenderer.invoke("providers:list") as Promise<LocalProvidersResponse>,
   },
   workspace: {
-    listFiles: () =>
-      ipcRenderer.invoke("workspace:list-files") as Promise<WorkspaceListFilesResponse>,
+    listFiles: (request) =>
+      ipcRenderer.invoke("workspace:list-files", request) as Promise<WorkspaceListFilesResponse>,
+    openFolder: () =>
+      ipcRenderer.invoke("workspace:open-folder") as Promise<WorkspaceListFilesResponse | null>,
   } satisfies WorkspaceBridge,
+  git: {
+    getStatus: (request) =>
+      ipcRenderer.invoke("git:status", request) as Promise<GitStatusResponse>,
+    commit: (request) =>
+      ipcRenderer.invoke("git:commit", request) as Promise<GitActionResponse>,
+    push: (request) =>
+      ipcRenderer.invoke("git:push", request) as Promise<GitActionResponse>,
+  } satisfies GitBridge,
   chat: {
     listSessions: () =>
       ipcRenderer.invoke("chat:list-sessions") as Promise<ChatSession[]>,
