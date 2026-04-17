@@ -44,19 +44,7 @@ function sessionTitle(session: ChatSession | null, activeFilePath: string | null
     return activeFilePath;
   }
 
-  return "Start a new thread";
-}
-
-function gitSummaryLabel(status: GitStatusResponse | null) {
-  if (!status?.isRepository) {
-    return "No repository";
-  }
-
-  if (status.summary.changed === 0) {
-    return "Clean";
-  }
-
-  return `${status.summary.changed} changed`;
+  return "";
 }
 
 function gitWorkspaceRoot(status: GitStatusResponse | null, workspaceRoot: string | null) {
@@ -138,6 +126,7 @@ function initialExpandedPaths(entries: WorkspaceEntry[]) {
 export function App() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [draftThreadId, setDraftThreadId] = useState<string | null>(null);
   const [workspaceRoot, setWorkspaceRoot] = useState<string | null>(null);
   const [workspaceEntries, setWorkspaceEntries] = useState<WorkspaceEntry[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
@@ -161,6 +150,7 @@ export function App() {
     () => sessions.filter((session) => !session.activeFilePath),
     [sessions],
   );
+  const hasActiveDraft = Boolean(draftThreadId && !selectedSessionId && !activeFilePath);
   const sessionsByFilePath = useMemo(() => {
     const next = new Map<string, ChatSession[]>();
 
@@ -199,6 +189,7 @@ export function App() {
 
       if (event.type === "turn.started") {
         setSelectedSessionId(event.sessionId);
+        setDraftThreadId(null);
       }
     }
 
@@ -230,6 +221,7 @@ export function App() {
         setWorkspaceEntries(workspace.entries);
         setExpandedPaths(initialExpandedPaths(workspace.entries));
         setActiveFilePath(null);
+        setDraftThreadId(null);
         setWorkspaceError(null);
         await refreshGitStatus(workspace.workspaceRoot);
       } catch (error) {
@@ -263,6 +255,13 @@ export function App() {
   function selectSession(session: ChatSession) {
     setSelectedSessionId(session.id);
     setActiveFilePath(session.activeFilePath);
+    setDraftThreadId(null);
+  }
+
+  function openDraftThread() {
+    setDraftThreadId(`draft:${Date.now()}`);
+    setActiveFilePath(null);
+    setSelectedSessionId(null);
   }
 
   function toggleDirectory(path: string) {
@@ -292,6 +291,7 @@ export function App() {
       setExpandedPaths(initialExpandedPaths(workspace.entries));
       setActiveFilePath(null);
       setSelectedSessionId(null);
+      setDraftThreadId(null);
       setWorkspaceError(null);
       await refreshGitStatus(workspace.workspaceRoot);
     } catch (error) {
@@ -467,10 +467,6 @@ export function App() {
 
         <div className={styles.headerContext}>
           <strong>{sessionTitle(selectedSession, activeFilePath)}</strong>
-          <span>
-            {workspaceLabel(workspaceRoot)}
-            {gitStatus?.isRepository ? ` / ${gitSummaryLabel(gitStatus)}` : ""}
-          </span>
         </div>
 
         <div className={styles.headerActions} aria-label="Workspace actions">
@@ -522,6 +518,7 @@ export function App() {
               type="button"
               onClick={() => {
                 setActiveFilePath(null);
+                setDraftThreadId(null);
                 setSelectedSessionId(repoSessions[0]?.id ?? null);
               }}
             >
@@ -545,16 +542,26 @@ export function App() {
             <button
               className={styles.commandButton}
               type="button"
-              onClick={() => {
-                setActiveFilePath(null);
-                setSelectedSessionId(null);
-              }}
+              onClick={() => openDraftThread()}
             >
               + new
             </button>
           </div>
           <div className={styles.chatList}>
-            {repoSessions.length === 0 ? (
+            {hasActiveDraft ? (
+              <button
+                className={`${styles.chatItem} ${styles.selectedChatItem}`}
+                type="button"
+                onClick={() => openDraftThread()}
+              >
+                <span className={styles.chatItemTop}>
+                  <strong>New thread</strong>
+                  <span>draft</span>
+                </span>
+                <span className={styles.chatMeta}>Ready for a prompt</span>
+              </button>
+            ) : null}
+            {repoSessions.length === 0 && !hasActiveDraft ? (
               <p className={styles.emptyList}>No threads yet.</p>
             ) : (
               repoSessions.map((session) => (
@@ -586,7 +593,10 @@ export function App() {
           session={selectedSession}
           activeFilePath={activeFilePath}
           workspaceRoot={workspaceRoot}
-          onSessionSelected={(sessionId) => setSelectedSessionId(sessionId)}
+          onSessionSelected={(sessionId) => {
+            setSelectedSessionId(sessionId);
+            setDraftThreadId(null);
+          }}
         />
       </div>
 

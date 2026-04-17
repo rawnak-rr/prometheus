@@ -75,20 +75,6 @@
   white-space: nowrap;
 }
 
-.headerContext span {
-  overflow: hidden;
-  border: 1px solid rgba(216, 222, 233, 0.12);
-  border-radius: 5px;
-  background: rgba(216, 222, 233, 0.055);
-  color: var(--muted-strong);
-  font-size: 12px;
-  font-weight: 500;
-  max-width: 220px;
-  padding: 4px 7px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .headerActions {
   display: flex;
   align-items: center;
@@ -498,8 +484,8 @@
 
 .graphEdgeToggle {
   position: absolute;
-  top: 12px;
-  right: 10px;
+  top: 64px;
+  right: 12px;
   z-index: 2;
   width: 28px;
   min-height: 28px;
