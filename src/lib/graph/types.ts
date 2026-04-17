@@ -27,6 +27,11 @@ export type ProjectGraphNode = {
   title: string;
   description: string;
   metadata: GraphMetadataItem[];
+  contextPath?: string;
+  contextMarkdown?: string;
+  filePaths?: string[];
+  toolIds?: string[];
+  ruleIds?: string[];
   position: {
     x: number;
     y: number;

@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
-import { readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
 import type {
   WorkspaceEntry,
+  WorkspaceReadFileResponse,
   WorkspaceListFilesResponse,
 } from "@/lib/workspace/types";
 
@@ -63,6 +64,26 @@ function buildEntriesFromFilePaths(filePaths: string[]) {
     }));
 
   return [...directories, ...files];
+}
+
+function resolveWorkspaceFilePath(workspaceRoot: string, relativeFilePath: string) {
+  if (!relativeFilePath.trim()) {
+    throw new Error("File path is required.");
+  }
+
+  if (path.isAbsolute(relativeFilePath)) {
+    throw new Error("Workspace file paths must be relative.");
+  }
+
+  const resolvedRoot = path.resolve(workspaceRoot);
+  const resolvedPath = path.resolve(resolvedRoot, relativeFilePath);
+  const relativePath = path.relative(resolvedRoot, resolvedPath);
+
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+    throw new Error("File path is outside the workspace.");
+  }
+
+  return resolvedPath;
 }
 
 async function listFilesFromGit(workspaceRoot: string) {
@@ -152,4 +173,26 @@ export async function listWorkspaceFiles(
       source: "filesystem",
     };
   }
+}
+
+export async function readWorkspaceFile(
+  workspaceRoot: string,
+  filePath: string,
+): Promise<WorkspaceReadFileResponse> {
+  const absolutePath = resolveWorkspaceFilePath(workspaceRoot, filePath);
+  const fileStat = await stat(absolutePath);
+
+  if (!fileStat.isFile()) {
+    throw new Error("Workspace path is not a file.");
+  }
+
+  if (fileStat.size > 1024 * 1024) {
+    throw new Error("Workspace file is too large to open.");
+  }
+
+  return {
+    workspaceRoot,
+    path: toPosixPath(filePath),
+    content: await readFile(absolutePath, "utf8"),
+  };
 }

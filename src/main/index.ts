@@ -16,7 +16,7 @@ import { disposeClaudeAgentSessions } from "@/lib/chat/claude-agent-runner";
 import { disposeCodexAppServerSessions } from "@/lib/chat/codex-app-server-runner";
 import { createChatSessionManager } from "./chat/session-manager";
 import { commitGitChanges, getGitStatus, pushGitChanges } from "./git/git-actions";
-import { listWorkspaceFiles } from "./workspace/workspace-files";
+import { listWorkspaceFiles, readWorkspaceFile } from "./workspace/workspace-files";
 
 const supportedChatProviders = new Set<ChatProviderId>(["claude", "codex"]);
 
@@ -152,6 +152,17 @@ ipcMain.handle("providers:list", async (): Promise<LocalProvidersResponse> => {
 ipcMain.handle("workspace:list-files", async (_event, request?: { workspaceRoot?: unknown }) => {
   return listWorkspaceFiles(workspaceRootFromRequest(request));
 });
+
+ipcMain.handle(
+  "workspace:read-file",
+  async (_event, request?: { workspaceRoot?: unknown; path?: unknown }) => {
+    if (typeof request?.path !== "string") {
+      throw new Error("File path is required.");
+    }
+
+    return readWorkspaceFile(workspaceRootFromRequest(request), request.path);
+  },
+);
 
 ipcMain.handle("workspace:open-folder", async () => {
   const result = await dialog.showOpenDialog({

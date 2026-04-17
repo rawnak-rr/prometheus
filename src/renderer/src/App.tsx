@@ -1,41 +1,65 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  type FormEvent,
+  type PointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
-import { ChatWorkspace } from "@/components/chat-workspace/chat-workspace";
-import { ProjectGraph } from "@/components/project-graph/project-graph";
+import { ChatWorkspace } from '@/components/chat-workspace/chat-workspace';
+import { ProjectGraph } from '@/components/project-graph/project-graph';
 import {
   sampleProjectGraphEdges,
   sampleProjectGraphNodes,
-} from "@/lib/graph/sample-project-graph";
-import type { ChatRuntimeEvent, ChatSession } from "@/lib/chat/types";
-import type { GitStatusFile, GitStatusResponse } from "@/lib/git/types";
-import type { WorkspaceEntry } from "@/lib/workspace/types";
-import styles from "./App.module.css";
+} from '@/lib/graph/sample-project-graph';
+import type { ProjectGraphNode } from '@/lib/graph/types';
+import type { ChatRuntimeEvent, ChatSession } from '@/lib/chat/types';
+import type { GitStatusFile, GitStatusResponse } from '@/lib/git/types';
+import type { WorkspaceEntry } from '@/lib/workspace/types';
+import styles from './App.module.css';
 
 function upsertSession(sessions: ChatSession[], session: ChatSession) {
-  const existingIndex = sessions.findIndex((candidate) => candidate.id === session.id);
+  const existingIndex = sessions.findIndex(
+    (candidate) => candidate.id === session.id,
+  );
 
   if (existingIndex === -1) {
-    return [session, ...sessions].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    return [session, ...sessions].sort((left, right) =>
+      right.updatedAt.localeCompare(left.updatedAt),
+    );
   }
 
   const nextSessions = [...sessions];
   nextSessions[existingIndex] = session;
-  return nextSessions.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  return nextSessions.sort((left, right) =>
+    right.updatedAt.localeCompare(left.updatedAt),
+  );
 }
 
 function providerLabel(session: ChatSession) {
-  return session.providerId === "claude" ? "Claude" : "Codex";
+  return session.providerId === 'claude' ? 'Claude' : 'Codex';
 }
 
 function workspaceLabel(workspaceRoot: string | null) {
   if (!workspaceRoot) {
-    return "No folder";
+    return 'No folder';
   }
 
   return workspaceRoot.split(/[\\/]/).filter(Boolean).at(-1) ?? workspaceRoot;
 }
 
-function sessionTitle(session: ChatSession | null, activeFilePath: string | null) {
+function sessionTitle(
+  session: ChatSession | null,
+  activeFilePath: string | null,
+  activeGraphContextFile: GraphContextFile | null,
+) {
+  if (activeGraphContextFile) {
+    return activeGraphContextFile.path;
+  }
+
   if (session) {
     return session.title;
   }
@@ -44,27 +68,30 @@ function sessionTitle(session: ChatSession | null, activeFilePath: string | null
     return activeFilePath;
   }
 
-  return "";
+  return '';
 }
 
-function gitWorkspaceRoot(status: GitStatusResponse | null, workspaceRoot: string | null) {
+function gitWorkspaceRoot(
+  status: GitStatusResponse | null,
+  workspaceRoot: string | null,
+) {
   return status?.repositoryRoot ?? workspaceRoot;
 }
 
 function gitFileStateLabel(file: GitStatusFile) {
-  if (file.index === "?" && file.workingTree === "?") {
-    return "untracked";
+  if (file.index === '?' && file.workingTree === '?') {
+    return 'untracked';
   }
 
-  if (file.index !== " " && file.workingTree !== " ") {
-    return "staged + modified";
+  if (file.index !== ' ' && file.workingTree !== ' ') {
+    return 'staged + modified';
   }
 
-  if (file.index !== " ") {
-    return "staged";
+  if (file.index !== ' ') {
+    return 'staged';
   }
 
-  return "modified";
+  return 'modified';
 }
 
 type WorkspaceTreeNode = WorkspaceEntry & {
@@ -72,8 +99,15 @@ type WorkspaceTreeNode = WorkspaceEntry & {
   children: WorkspaceTreeNode[];
 };
 
+type GraphContextFile = {
+  nodeId: string;
+  nodeTitle: string;
+  path: string;
+  content: string;
+};
+
 function entryName(path: string) {
-  return path.split("/").at(-1) ?? path;
+  return path.split('/').at(-1) ?? path;
 }
 
 function buildWorkspaceTree(entries: WorkspaceEntry[]) {
@@ -100,7 +134,7 @@ function buildWorkspaceTree(entries: WorkspaceEntry[]) {
   function sortNodes(nodes: WorkspaceTreeNode[]) {
     nodes.sort((left, right) => {
       if (left.kind !== right.kind) {
-        return left.kind === "directory" ? -1 : 1;
+        return left.kind === 'directory' ? -1 : 1;
       }
 
       return left.name.localeCompare(right.name);
@@ -118,39 +152,79 @@ function buildWorkspaceTree(entries: WorkspaceEntry[]) {
 function initialExpandedPaths(entries: WorkspaceEntry[]) {
   return new Set(
     entries
-      .filter((entry) => entry.kind === "directory" && !entry.parentPath)
+      .filter((entry) => entry.kind === 'directory' && !entry.parentPath)
       .map((entry) => entry.path),
+  );
+}
+
+const GRAPH_PANEL_DEFAULT_WIDTH = 360;
+const GRAPH_PANEL_MIN_WIDTH = 280;
+const GRAPH_PANEL_MAX_WIDTH = 780;
+
+function clampGraphPanelWidth(width: number) {
+  return Math.min(
+    GRAPH_PANEL_MAX_WIDTH,
+    Math.max(GRAPH_PANEL_MIN_WIDTH, Math.round(width)),
   );
 }
 
 export function App() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
+    null,
+  );
   const [draftThreadId, setDraftThreadId] = useState<string | null>(null);
   const [workspaceRoot, setWorkspaceRoot] = useState<string | null>(null);
-  const [workspaceEntries, setWorkspaceEntries] = useState<WorkspaceEntry[]>([]);
+  const [workspaceEntries, setWorkspaceEntries] = useState<WorkspaceEntry[]>(
+    [],
+  );
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [gitStatus, setGitStatus] = useState<GitStatusResponse | null>(null);
   const [gitMessage, setGitMessage] = useState<string | null>(null);
   const [isGitBusy, setIsGitBusy] = useState(false);
   const [isCommitModalOpen, setIsCommitModalOpen] = useState(false);
-  const [commitMessage, setCommitMessage] = useState("");
-  const [selectedCommitPaths, setSelectedCommitPaths] = useState<Set<string>>(() => new Set());
+  const [commitMessage, setCommitMessage] = useState('');
+  const [selectedCommitPaths, setSelectedCommitPaths] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [commitError, setCommitError] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isGraphCollapsed, setIsGraphCollapsed] = useState(false);
+  const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(
+    sampleProjectGraphNodes[0]?.id ?? null,
+  );
+  const [activeGraphContextFile, setActiveGraphContextFile] =
+    useState<GraphContextFile | null>(null);
+  const [graphContextError, setGraphContextError] = useState<string | null>(
+    null,
+  );
+  const [graphPanelWidth, setGraphPanelWidth] = useState(
+    GRAPH_PANEL_DEFAULT_WIDTH,
+  );
+  const [isGraphResizing, setIsGraphResizing] = useState(false);
+  const graphResizeRef = useRef<{
+    startX: number;
+    startWidth: number;
+  } | null>(null);
   const selectedSession = useMemo(
     () => sessions.find((session) => session.id === selectedSessionId) ?? null,
     [selectedSessionId, sessions],
   );
-  const workspaceTree = useMemo(() => buildWorkspaceTree(workspaceEntries), [workspaceEntries]);
+  const workspaceTree = useMemo(
+    () => buildWorkspaceTree(workspaceEntries),
+    [workspaceEntries],
+  );
   const repoSessions = useMemo(
     () => sessions.filter((session) => !session.activeFilePath),
     [sessions],
   );
-  const hasActiveDraft = Boolean(draftThreadId && !selectedSessionId && !activeFilePath);
+  const hasActiveDraft = Boolean(
+    draftThreadId && !selectedSessionId && !activeFilePath,
+  );
   const sessionsByFilePath = useMemo(() => {
     const next = new Map<string, ChatSession[]>();
 
@@ -166,6 +240,26 @@ export function App() {
 
     return next;
   }, [sessions]);
+  const selectedGraphNode = useMemo(
+    () =>
+      sampleProjectGraphNodes.find((node) => node.id === selectedGraphNodeId) ??
+      null,
+    [selectedGraphNodeId],
+  );
+  const graphContextFiles = useMemo(
+    () =>
+      sampleProjectGraphNodes
+        .filter((node) => node.contextPath)
+        .map((node) => ({
+          nodeId: node.id,
+          nodeTitle: node.title,
+          path: node.contextPath ?? '',
+          content:
+            node.contextMarkdown ??
+            '# Context\n\nAdd durable project knowledge for this node.',
+        })),
+    [],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -176,18 +270,22 @@ export function App() {
       }
 
       setSessions(loadedSessions);
-      setSelectedSessionId((current) => current ?? loadedSessions[0]?.id ?? null);
+      setSelectedSessionId(
+        (current) => current ?? loadedSessions[0]?.id ?? null,
+      );
     });
 
     function handleChatEvent(event: ChatRuntimeEvent) {
-      if (event.type === "sessions.changed") {
+      if (event.type === 'sessions.changed') {
         setSessions(event.sessions);
         return;
       }
 
-      setSessions((currentSessions) => upsertSession(currentSessions, event.session));
+      setSessions((currentSessions) =>
+        upsertSession(currentSessions, event.session),
+      );
 
-      if (event.type === "turn.started") {
+      if (event.type === 'turn.started') {
         setSelectedSessionId(event.sessionId);
         setDraftThreadId(null);
       }
@@ -207,7 +305,9 @@ export function App() {
       return null;
     }
 
-    const status = await window.prometheus.git.getStatus({ workspaceRoot: root });
+    const status = await window.prometheus.git.getStatus({
+      workspaceRoot: root,
+    });
     setGitStatus(status);
     return status;
   }, []);
@@ -215,7 +315,9 @@ export function App() {
   const loadWorkspace = useCallback(
     async (root?: string | null) => {
       try {
-        const workspace = await window.prometheus.workspace.listFiles({ workspaceRoot: root });
+        const workspace = await window.prometheus.workspace.listFiles({
+          workspaceRoot: root,
+        });
 
         setWorkspaceRoot(workspace.workspaceRoot);
         setWorkspaceEntries(workspace.entries);
@@ -226,7 +328,9 @@ export function App() {
         await refreshGitStatus(workspace.workspaceRoot);
       } catch (error) {
         setWorkspaceError(
-          error instanceof Error ? error.message : "Failed to load workspace files.",
+          error instanceof Error
+            ? error.message
+            : 'Failed to load workspace files.',
         );
       }
     },
@@ -238,14 +342,16 @@ export function App() {
   }, [loadWorkspace]);
 
   useEffect(() => {
-    const unsubscribeShortcut = window.prometheus.shell.onShortcut((shortcut) => {
-      if (shortcut === "toggle-sidebar") {
-        setIsSidebarCollapsed((current) => !current);
-        return;
-      }
+    const unsubscribeShortcut = window.prometheus.shell.onShortcut(
+      (shortcut) => {
+        if (shortcut === 'toggle-sidebar') {
+          setIsSidebarCollapsed((current) => !current);
+          return;
+        }
 
-      setIsGraphCollapsed((current) => !current);
-    });
+        setIsGraphCollapsed((current) => !current);
+      },
+    );
 
     return () => {
       unsubscribeShortcut();
@@ -256,12 +362,14 @@ export function App() {
     setSelectedSessionId(session.id);
     setActiveFilePath(session.activeFilePath);
     setDraftThreadId(null);
+    setActiveGraphContextFile(null);
   }
 
   function openDraftThread() {
     setDraftThreadId(`draft:${Date.now()}`);
     setActiveFilePath(null);
     setSelectedSessionId(null);
+    setActiveGraphContextFile(null);
   }
 
   function toggleDirectory(path: string) {
@@ -295,7 +403,9 @@ export function App() {
       setWorkspaceError(null);
       await refreshGitStatus(workspace.workspaceRoot);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Failed to open folder.");
+      setWorkspaceError(
+        error instanceof Error ? error.message : 'Failed to open folder.',
+      );
     }
   }
 
@@ -313,7 +423,7 @@ export function App() {
     const files = status?.files ?? gitStatus?.files ?? [];
 
     setSelectedCommitPaths(new Set(files.map((file) => file.path)));
-    setCommitMessage("");
+    setCommitMessage('');
     setIsCommitModalOpen(true);
   }
 
@@ -342,12 +452,12 @@ export function App() {
     }
 
     if (!commitMessage.trim()) {
-      setCommitError("Write a commit message.");
+      setCommitError('Write a commit message.');
       return;
     }
 
     if (files.length === 0) {
-      setCommitError("Select at least one file.");
+      setCommitError('Select at least one file.');
       return;
     }
 
@@ -363,12 +473,12 @@ export function App() {
       });
 
       setGitStatus(result.status);
-      setGitMessage(result.output || "Committed changes.");
+      setGitMessage(result.output || 'Committed changes.');
       setIsCommitModalOpen(false);
-      setCommitMessage("");
+      setCommitMessage('');
       setSelectedCommitPaths(new Set());
     } catch (error) {
-      setCommitError(error instanceof Error ? error.message : "Commit failed.");
+      setCommitError(error instanceof Error ? error.message : 'Commit failed.');
       await refreshGitStatus(root);
     } finally {
       setIsGitBusy(false);
@@ -389,9 +499,9 @@ export function App() {
       const result = await window.prometheus.git.push({ workspaceRoot: root });
 
       setGitStatus(result.status);
-      setGitMessage(result.output || "Pushed changes.");
+      setGitMessage(result.output || 'Pushed changes.');
     } catch (error) {
-      setGitMessage(error instanceof Error ? error.message : "Push failed.");
+      setGitMessage(error instanceof Error ? error.message : 'Push failed.');
       await refreshGitStatus(root);
     } finally {
       setIsGitBusy(false);
@@ -400,27 +510,30 @@ export function App() {
 
   function renderWorkspaceNode(node: WorkspaceTreeNode, depth = 0) {
     const isExpanded = expandedPaths.has(node.path);
-    const fileSessions = node.kind === "file" ? sessionsByFilePath.get(node.path) ?? [] : [];
-    const selected = node.kind === "file" && node.path === activeFilePath;
+    const fileSessions =
+      node.kind === 'file' ? (sessionsByFilePath.get(node.path) ?? []) : [];
+    const selected = node.kind === 'file' && node.path === activeFilePath;
 
     return (
-      <div className={styles.fileNode} key={node.path}>
+      <div
+        className={styles.fileNode}
+        key={node.path}>
         <button
-          className={`${styles.fileRow} ${selected ? styles.selectedFileRow : ""}`}
+          className={`${styles.fileRow} ${selected ? styles.selectedFileRow : ''}`}
           style={{ paddingLeft: `${6 + depth * 13}px` }}
-          type="button"
+          type='button'
           onClick={() => {
-            if (node.kind === "directory") {
+            if (node.kind === 'directory') {
               toggleDirectory(node.path);
               return;
             }
 
             setActiveFilePath(node.path);
             setSelectedSessionId(fileSessions[0]?.id ?? null);
-          }}
-        >
+            setActiveGraphContextFile(null);
+          }}>
           <span className={styles.fileIcon}>
-            {node.kind === "directory" ? (isExpanded ? "v" : ">") : "-"}
+            {node.kind === 'directory' ? (isExpanded ? 'v' : '>') : '-'}
           </span>
           <span className={styles.fileName}>{node.name}</span>
           {fileSessions.length > 0 ? (
@@ -433,13 +546,14 @@ export function App() {
             {fileSessions.map((session) => (
               <button
                 className={`${styles.nestedChatItem} ${
-                  session.id === selectedSessionId ? styles.selectedNestedChatItem : ""
+                  session.id === selectedSessionId
+                    ? styles.selectedNestedChatItem
+                    : ''
                 }`}
                 key={session.id}
                 style={{ paddingLeft: `${25 + depth * 13}px` }}
-                type="button"
-                onClick={() => selectSession(session)}
-              >
+                type='button'
+                onClick={() => selectSession(session)}>
                 <span>{session.title}</span>
                 <span>{session.status}</span>
               </button>
@@ -447,84 +561,288 @@ export function App() {
           </div>
         ) : null}
 
-        {node.kind === "directory" && isExpanded ? (
-          <div>{node.children.map((child) => renderWorkspaceNode(child, depth + 1))}</div>
+        {node.kind === 'directory' && isExpanded ? (
+          <div>
+            {node.children.map((child) =>
+              renderWorkspaceNode(child, depth + 1),
+            )}
+          </div>
         ) : null}
       </div>
     );
   }
 
+  function startGraphResize(event: PointerEvent<HTMLButtonElement>) {
+    if (isGraphCollapsed) {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    graphResizeRef.current = {
+      startX: event.clientX,
+      startWidth: graphPanelWidth,
+    };
+    setIsGraphResizing(true);
+  }
+
+  function resizeGraphPanel(event: PointerEvent<HTMLButtonElement>) {
+    const resizeState = graphResizeRef.current;
+
+    if (!resizeState) {
+      return;
+    }
+
+    setGraphPanelWidth(
+      clampGraphPanelWidth(
+        resizeState.startWidth - (event.clientX - resizeState.startX),
+      ),
+    );
+  }
+
+  function stopGraphResize(event: PointerEvent<HTMLButtonElement>) {
+    if (!graphResizeRef.current) {
+      return;
+    }
+
+    graphResizeRef.current = null;
+    setIsGraphResizing(false);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  async function openGraphContextFile(file: GraphContextFile) {
+    setSelectedGraphNodeId(file.nodeId);
+    setGraphContextError(null);
+
+    try {
+      const loadedFile = await window.prometheus.workspace.readFile({
+        workspaceRoot,
+        path: file.path,
+      });
+
+      setActiveGraphContextFile({
+        ...file,
+        content: loadedFile.content,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to open context file.";
+
+      setGraphContextError(message);
+      setActiveGraphContextFile({
+        ...file,
+        content: `# Unable to open ${file.path}\n\n${message}`,
+      });
+    }
+  }
+
+  function renderGraphContextPanel(node: ProjectGraphNode | null) {
+    if (!node) {
+      return (
+        <div className={styles.graphContextPanel}>
+          <div className={styles.graphContextHeader}>
+            <span>No node selected</span>
+            <strong>Context Target</strong>
+          </div>
+          <p className={styles.graphContextEmpty}>
+            Select a node to inspect the markdown context that would target a
+            model turn.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className={styles.graphContextPanel}>
+        <div className={styles.graphContextHeader}>
+          <span>{node.type.replace("_", " ")}</span>
+          <strong>{node.title}</strong>
+        </div>
+
+        <p className={styles.graphContextDescription}>{node.description}</p>
+
+        <div className={styles.graphContextTree}>
+          <div className={styles.graphTreeFolder}>
+            <span className={styles.graphTreeIcon}>v</span>
+            <span>.prometheus</span>
+          </div>
+          <div className={styles.graphTreeFolderNested}>
+            <span className={styles.graphTreeIcon}>v</span>
+            <span>graph</span>
+          </div>
+          <div className={styles.graphTreeFiles}>
+            {graphContextFiles.map((file) => (
+              <button
+                className={`${styles.graphTreeFile} ${
+                  activeGraphContextFile?.path === file.path
+                    ? styles.graphTreeFileSelected
+                    : ''
+                } ${
+                  file.nodeId === node.id ? styles.graphTreeFileActiveNode : ''
+                }`}
+                key={file.path}
+                type='button'
+                onClick={() => void openGraphContextFile(file)}>
+                <span className={styles.graphTreeIcon}>-</span>
+                <span>{file.path.split("/").at(-1)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.graphContextConvention}>
+          <h4>Markdown Convention</h4>
+          <p>
+            Click a context file to open it in the center workspace. Keep each
+            file short: purpose, current decisions, relevant files,
+            constraints, tools, and last verified date.
+          </p>
+          {graphContextError ? (
+            <p className={styles.graphContextError}>{graphContextError}</p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  function renderGraphMarkdownWorkspace(file: GraphContextFile) {
+    return (
+      <section
+        className={styles.markdownWorkspace}
+        aria-label='Graph context markdown file'>
+        <div className={styles.markdownTabs}>
+          <div className={styles.markdownTab}>
+            <span>{file.path.split("/").at(-1)}</span>
+            <button
+              type='button'
+              aria-label='Close markdown file'
+              onClick={() => setActiveGraphContextFile(null)}>
+              x
+            </button>
+          </div>
+        </div>
+
+        <div className={styles.markdownEditorHeader}>
+          <div>
+            <span>{file.path}</span>
+            <strong>{file.nodeTitle}</strong>
+          </div>
+          <span>Markdown</span>
+        </div>
+
+        <div className={styles.markdownEditor}>
+          <div
+            className={styles.markdownLineNumbers}
+            aria-hidden='true'>
+            {file.content.split("\n").map((_, index) => (
+              <span key={`${file.path}:${index}`}>{index + 1}</span>
+            ))}
+          </div>
+          <pre>{file.content}</pre>
+        </div>
+      </section>
+    );
+  }
+
+  const workspaceStyle = {
+    '--graph-panel-width': `${graphPanelWidth}px`,
+  } as CSSProperties;
+
   return (
     <main
-      className={`${styles.workspace} ${isGraphCollapsed ? styles.workspaceGraphCollapsed : ""} ${
-        isSidebarCollapsed ? styles.workspaceSidebarCollapsed : ""
-      }`}
-    >
+      style={workspaceStyle}
+      className={`${styles.workspace} ${isGraphCollapsed ? styles.workspaceGraphCollapsed : ''} ${
+        isGraphResizing ? styles.workspaceGraphResizing : ''
+      } ${
+        isSidebarCollapsed ? styles.workspaceSidebarCollapsed : ''
+      }`}>
       <header className={styles.appHeader}>
         <div className={styles.productMark}>
-          <strong>Prometheus</strong>
+          <strong>prometheus</strong>
         </div>
 
         <div className={styles.headerContext}>
-          <strong>{sessionTitle(selectedSession, activeFilePath)}</strong>
+          <strong>
+            {sessionTitle(
+              selectedSession,
+              activeFilePath,
+              activeGraphContextFile,
+            )}
+          </strong>
         </div>
 
-        <div className={styles.headerActions} aria-label="Workspace actions">
-          <button className={styles.headerSplitButton} type="button" onClick={() => void openFolder()}>
+        <div
+          className={styles.headerActions}
+          aria-label='Workspace actions'>
+          <button
+            className={styles.headerSplitButton}
+            type='button'
+            onClick={() => void openFolder()}>
             <span className={styles.headerButtonMain}>Open</span>
           </button>
 
           <button
             className={styles.headerButton}
-            type="button"
+            type='button'
             disabled={
               isGitBusy ||
               !gitWorkspaceRoot(gitStatus, workspaceRoot) ||
-              (gitStatus?.isRepository === true && gitStatus.summary.changed === 0)
+              (gitStatus?.isRepository === true &&
+                gitStatus.summary.changed === 0)
             }
-            onClick={() => void openCommitModal()}
-          >
+            onClick={() => void openCommitModal()}>
             <span>Commit</span>
           </button>
 
           <button
             className={styles.headerButton}
-            type="button"
+            type='button'
             disabled={isGitBusy || !gitWorkspaceRoot(gitStatus, workspaceRoot)}
-            onClick={() => void pushChanges()}
-          >
+            onClick={() => void pushChanges()}>
             <span>Push</span>
           </button>
         </div>
       </header>
 
-      <aside className={styles.sidebar} aria-label="Project navigation">
+      <aside
+        className={styles.sidebar}
+        aria-label='Project navigation'>
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Files</h2>
             <button
               className={styles.commandButton}
-              type="button"
-              onClick={() => void openFolder()}
-            >
+              type='button'
+              onClick={() => void openFolder()}>
               open
             </button>
           </div>
-          {gitMessage ? <p className={styles.inlineNotice}>{gitMessage}</p> : null}
-          {workspaceError ? <p className={styles.emptyList}>{workspaceError}</p> : null}
+          {gitMessage ? (
+            <p className={styles.inlineNotice}>{gitMessage}</p>
+          ) : null}
+          {workspaceError ? (
+            <p className={styles.emptyList}>{workspaceError}</p>
+          ) : null}
           {workspaceRoot ? (
             <button
-              className={`${styles.fileRow} ${activeFilePath === null ? styles.selectedFileRow : ""}`}
-              type="button"
+              className={`${styles.fileRow} ${activeFilePath === null ? styles.selectedFileRow : ''}`}
+              type='button'
               onClick={() => {
                 setActiveFilePath(null);
                 setDraftThreadId(null);
                 setSelectedSessionId(repoSessions[0]?.id ?? null);
-              }}
-            >
+                setActiveGraphContextFile(null);
+              }}>
               <span className={styles.fileIcon}>@</span>
-              <span className={styles.fileName}>{workspaceLabel(workspaceRoot)}</span>
-              <span className={styles.fileChatCount}>{repoSessions.length || ""}</span>
+              <span className={styles.fileName}>
+                {workspaceLabel(workspaceRoot)}
+              </span>
+              <span className={styles.fileChatCount}>
+                {repoSessions.length || ''}
+              </span>
             </button>
           ) : null}
           <div className={styles.fileTree}>
@@ -541,9 +859,8 @@ export function App() {
             <h2>Repo Threads</h2>
             <button
               className={styles.commandButton}
-              type="button"
-              onClick={() => openDraftThread()}
-            >
+              type='button'
+              onClick={() => openDraftThread()}>
               + new
             </button>
           </div>
@@ -551,9 +868,8 @@ export function App() {
             {hasActiveDraft ? (
               <button
                 className={`${styles.chatItem} ${styles.selectedChatItem}`}
-                type="button"
-                onClick={() => openDraftThread()}
-              >
+                type='button'
+                onClick={() => openDraftThread()}>
                 <span className={styles.chatItemTop}>
                   <strong>New thread</strong>
                   <span>draft</span>
@@ -567,12 +883,13 @@ export function App() {
               repoSessions.map((session) => (
                 <button
                   className={`${styles.chatItem} ${
-                    session.id === selectedSessionId ? styles.selectedChatItem : ""
+                    session.id === selectedSessionId
+                      ? styles.selectedChatItem
+                      : ''
                   }`}
                   key={session.id}
-                  type="button"
-                  onClick={() => selectSession(session)}
-                >
+                  type='button'
+                  onClick={() => selectSession(session)}>
                   <span className={styles.chatItemTop}>
                     <strong>{session.title}</strong>
                     <span>{session.status}</span>
@@ -585,65 +902,85 @@ export function App() {
             )}
           </div>
         </section>
-
       </aside>
 
       <div className={styles.main}>
-        <ChatWorkspace
-          session={selectedSession}
-          activeFilePath={activeFilePath}
-          workspaceRoot={workspaceRoot}
-          onSessionSelected={(sessionId) => {
-            setSelectedSessionId(sessionId);
-            setDraftThreadId(null);
-          }}
-        />
+        {activeGraphContextFile ? (
+          renderGraphMarkdownWorkspace(activeGraphContextFile)
+        ) : (
+          <ChatWorkspace
+            session={selectedSession}
+            activeFilePath={activeFilePath}
+            workspaceRoot={workspaceRoot}
+            onSessionSelected={(sessionId) => {
+              setSelectedSessionId(sessionId);
+              setDraftThreadId(null);
+              setActiveGraphContextFile(null);
+            }}
+          />
+        )}
       </div>
 
       <aside
-        className={`${styles.graphPanel} ${isGraphCollapsed ? styles.graphPanelCollapsed : ""}`}
-        aria-label="Project graph"
-      >
+        className={`${styles.graphPanel} ${isGraphCollapsed ? styles.graphPanelCollapsed : ''}`}
+        aria-label='Project graph'>
+        {isGraphCollapsed ? null : (
+          <button
+            className={styles.graphResizeHandle}
+            type='button'
+            aria-label='Resize graph sidebar'
+            onPointerDown={startGraphResize}
+            onPointerMove={resizeGraphPanel}
+            onPointerUp={stopGraphResize}
+            onPointerCancel={stopGraphResize}
+          />
+        )}
         <div className={styles.graphHeader}>
           <h2>Graph</h2>
-          <button
-            className={styles.graphToggle}
-            type="button"
-            aria-label={isGraphCollapsed ? "Expand graph" : "Collapse graph"}
-            onClick={() => setIsGraphCollapsed((current) => !current)}
-          >
-            {isGraphCollapsed ? "<" : ">"}
-          </button>
+          <div
+            className={styles.graphActions}
+            role='group'
+            aria-label='Graph sidebar actions'>
+            <button
+              className={styles.graphToggle}
+              type='button'
+              aria-label={
+                isGraphCollapsed ? 'Expand graph sidebar' : 'Contract graph sidebar'
+              }
+              onClick={() => setIsGraphCollapsed((current) => !current)}>
+              {isGraphCollapsed ? '<' : '>'}
+            </button>
+          </div>
         </div>
         {isGraphCollapsed ? null : (
-          <ProjectGraph nodes={sampleProjectGraphNodes} edges={sampleProjectGraphEdges} />
+          <ProjectGraph
+            nodes={sampleProjectGraphNodes}
+            edges={sampleProjectGraphEdges}
+            selectedNodeId={selectedGraphNodeId}
+            onSelectedNodeIdChange={setSelectedGraphNodeId}
+          />
         )}
+        {isGraphCollapsed ? null : renderGraphContextPanel(selectedGraphNode)}
       </aside>
 
-      {isGraphCollapsed ? (
-        <button
-          className={styles.graphEdgeToggle}
-          type="button"
-          aria-label="Expand graph"
-          onClick={() => setIsGraphCollapsed(false)}
-        >
-          &lt;
-        </button>
-      ) : null}
-
       {isCommitModalOpen ? (
-        <div className={styles.modalBackdrop} role="presentation">
-          <form className={styles.commitModal} onSubmit={(event) => void commitSelectedChanges(event)}>
+        <div
+          className={styles.modalBackdrop}
+          role='presentation'>
+          <form
+            className={styles.commitModal}
+            onSubmit={(event) => void commitSelectedChanges(event)}>
             <div className={styles.modalHeader}>
               <div>
                 <strong>Commit changes</strong>
-                <span>{gitStatus?.branch ?? workspaceLabel(workspaceRoot)}</span>
+                <span>
+                  {gitStatus?.branch ?? workspaceLabel(workspaceRoot)}
+                </span>
               </div>
               <button
-                type="button"
-                aria-label="Close commit modal"
-                onClick={() => setIsCommitModalOpen(false)}
-              >
+                type='button'
+                aria-label='Close commit modal'
+                onClick={() => setIsCommitModalOpen(false)}>
                 x
               </button>
             </div>
@@ -653,7 +990,7 @@ export function App() {
               <input
                 value={commitMessage}
                 onChange={(event) => setCommitMessage(event.target.value)}
-                placeholder="Commit message"
+                placeholder='Commit message'
                 disabled={isGitBusy}
                 autoFocus
               />
@@ -662,11 +999,12 @@ export function App() {
             <div className={styles.commitFilesHeader}>
               <span>Files</span>
               <button
-                type="button"
+                type='button'
                 onClick={() =>
-                  setSelectedCommitPaths(new Set(gitStatus?.files.map((file) => file.path) ?? []))
-                }
-              >
+                  setSelectedCommitPaths(
+                    new Set(gitStatus?.files.map((file) => file.path) ?? []),
+                  )
+                }>
                 select all
               </button>
             </div>
@@ -674,9 +1012,11 @@ export function App() {
             <div className={styles.commitFileList}>
               {gitStatus?.files.length ? (
                 gitStatus.files.map((file) => (
-                  <label className={styles.commitFileRow} key={`${file.index}:${file.workingTree}:${file.path}`}>
+                  <label
+                    className={styles.commitFileRow}
+                    key={`${file.index}:${file.workingTree}:${file.path}`}>
                     <input
-                      type="checkbox"
+                      type='checkbox'
                       checked={selectedCommitPaths.has(file.path)}
                       onChange={() => toggleCommitPath(file.path)}
                       disabled={isGitBusy}
@@ -690,17 +1030,25 @@ export function App() {
               )}
             </div>
 
-            {commitError ? <p className={styles.modalError}>{commitError}</p> : null}
+            {commitError ? (
+              <p className={styles.modalError}>{commitError}</p>
+            ) : null}
 
             <div className={styles.modalActions}>
-              <button type="button" onClick={() => setIsCommitModalOpen(false)} disabled={isGitBusy}>
+              <button
+                type='button'
+                onClick={() => setIsCommitModalOpen(false)}
+                disabled={isGitBusy}>
                 Cancel
               </button>
               <button
-                type="submit"
-                disabled={isGitBusy || !commitMessage.trim() || selectedCommitPaths.size === 0}
-              >
-                {isGitBusy ? "Committing" : "Commit"}
+                type='submit'
+                disabled={
+                  isGitBusy ||
+                  !commitMessage.trim() ||
+                  selectedCommitPaths.size === 0
+                }>
+                {isGitBusy ? 'Committing' : 'Commit'}
               </button>
             </div>
           </form>

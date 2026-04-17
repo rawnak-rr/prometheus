@@ -11,7 +11,11 @@ import type {
 } from "@/lib/chat/types";
 import type { LocalProvidersResponse } from "@/lib/providers/types";
 import type { GitBridge, GitActionResponse, GitStatusResponse } from "@/lib/git/types";
-import type { WorkspaceBridge, WorkspaceListFilesResponse } from "@/lib/workspace/types";
+import type {
+  WorkspaceBridge,
+  WorkspaceListFilesResponse,
+  WorkspaceReadFileResponse,
+} from "@/lib/workspace/types";
 
 const api = {
   shell: {
@@ -38,6 +42,8 @@ const api = {
       ipcRenderer.invoke("workspace:list-files", request) as Promise<WorkspaceListFilesResponse>,
     openFolder: () =>
       ipcRenderer.invoke("workspace:open-folder") as Promise<WorkspaceListFilesResponse | null>,
+    readFile: (request) =>
+      ipcRenderer.invoke("workspace:read-file", request) as Promise<WorkspaceReadFileResponse>,
   } satisfies WorkspaceBridge,
   git: {
     getStatus: (request) =>

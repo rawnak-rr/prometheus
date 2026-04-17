@@ -11,5 +11,6 @@ pnpm-debug.log*
 dist
 coverage
 *.md
+!.prometheus/graph/*.md
 tsconfig.tsbuildinfo
 .ui-inspo/
