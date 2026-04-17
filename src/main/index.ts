@@ -170,12 +170,16 @@ ipcMain.handle("git:status", async (_event, request?: { workspaceRoot?: unknown 
   return getGitStatus(workspaceRootFromRequest(request));
 });
 
-ipcMain.handle("git:commit", async (_event, request?: { workspaceRoot?: unknown; message?: unknown }) => {
+ipcMain.handle("git:commit", async (_event, request?: { workspaceRoot?: unknown; message?: unknown; files?: unknown }) => {
   if (typeof request?.message !== "string") {
     throw new Error("Commit message is required.");
   }
 
-  return commitGitChanges(workspaceRootFromRequest(request), request.message);
+  if (!Array.isArray(request.files) || !request.files.every((file) => typeof file === "string")) {
+    throw new Error("Commit files are required.");
+  }
+
+  return commitGitChanges(workspaceRootFromRequest(request), request.message, request.files);
 });
 
 ipcMain.handle("git:push", async (_event, request?: { workspaceRoot?: unknown }) => {

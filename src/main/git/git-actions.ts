@@ -66,6 +66,21 @@ function summarizeFiles(files: GitStatusFile[]) {
   return summary;
 }
 
+function parseStatusFile(line: string): GitStatusFile {
+  const rawPath = line.slice(3);
+  const renamedPath = rawPath.includes(" -> ") ? rawPath.split(" -> ").at(-1) : rawPath;
+
+  return {
+    index: line[0] ?? " ",
+    workingTree: line[1] ?? " ",
+    path: renamedPath ?? rawPath,
+  };
+}
+
+function normalizeCommitFiles(files: string[]) {
+  return Array.from(new Set(files.map((file) => file.trim()).filter(Boolean)));
+}
+
 async function repositoryRoot(workspaceRoot: string) {
   const result = await runGit(workspaceRoot, ["rev-parse", "--show-toplevel"]);
   return result.stdout.trim();
@@ -88,11 +103,7 @@ export async function getGitStatus(workspaceRoot: string): Promise<GitStatusResp
       : { branch: null, upstream: null, ahead: 0, behind: 0 };
     const files = lines
       .filter((line) => !line.startsWith("## "))
-      .map((line) => ({
-        index: line[0] ?? " ",
-        workingTree: line[1] ?? " ",
-        path: line.slice(3),
-      }));
+      .map(parseStatusFile);
 
     return {
       workspaceRoot,
@@ -122,17 +133,29 @@ export async function getGitStatus(workspaceRoot: string): Promise<GitStatusResp
 export async function commitGitChanges(
   workspaceRoot: string,
   message: string,
+  files: string[],
 ): Promise<GitActionResponse> {
   const trimmedMessage = message.trim();
+  const commitFiles = normalizeCommitFiles(files);
 
   if (!trimmedMessage) {
     throw new Error("Commit message is required.");
   }
 
+  if (commitFiles.length === 0) {
+    throw new Error("Select at least one file to commit.");
+  }
+
   const repositoryRoot = await gitRoot(workspaceRoot);
 
-  await runGit(repositoryRoot, ["add", "-A"]);
-  const commitResult = await runGit(repositoryRoot, ["commit", "-m", trimmedMessage]);
+  await runGit(repositoryRoot, ["add", "--", ...commitFiles]);
+  const commitResult = await runGit(repositoryRoot, [
+    "commit",
+    "-m",
+    trimmedMessage,
+    "--",
+    ...commitFiles,
+  ]);
   const status = await getGitStatus(repositoryRoot);
 
   return {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChatWorkspace } from "@/components/chat-workspace/chat-workspace";
 import { ProjectGraph } from "@/components/project-graph/project-graph";
@@ -7,7 +7,7 @@ import {
   sampleProjectGraphNodes,
 } from "@/lib/graph/sample-project-graph";
 import type { ChatRuntimeEvent, ChatSession } from "@/lib/chat/types";
-import type { GitStatusResponse } from "@/lib/git/types";
+import type { GitStatusFile, GitStatusResponse } from "@/lib/git/types";
 import type { WorkspaceEntry } from "@/lib/workspace/types";
 import styles from "./App.module.css";
 
@@ -35,6 +35,18 @@ function workspaceLabel(workspaceRoot: string | null) {
   return workspaceRoot.split(/[\\/]/).filter(Boolean).at(-1) ?? workspaceRoot;
 }
 
+function sessionTitle(session: ChatSession | null, activeFilePath: string | null) {
+  if (session) {
+    return session.title;
+  }
+
+  if (activeFilePath) {
+    return activeFilePath;
+  }
+
+  return "Start a new thread";
+}
+
 function gitSummaryLabel(status: GitStatusResponse | null) {
   if (!status?.isRepository) {
     return "No repository";
@@ -49,6 +61,22 @@ function gitSummaryLabel(status: GitStatusResponse | null) {
 
 function gitWorkspaceRoot(status: GitStatusResponse | null, workspaceRoot: string | null) {
   return status?.repositoryRoot ?? workspaceRoot;
+}
+
+function gitFileStateLabel(file: GitStatusFile) {
+  if (file.index === "?" && file.workingTree === "?") {
+    return "untracked";
+  }
+
+  if (file.index !== " " && file.workingTree !== " ") {
+    return "staged + modified";
+  }
+
+  if (file.index !== " ") {
+    return "staged";
+  }
+
+  return "modified";
 }
 
 type WorkspaceTreeNode = WorkspaceEntry & {
@@ -118,6 +146,10 @@ export function App() {
   const [gitStatus, setGitStatus] = useState<GitStatusResponse | null>(null);
   const [gitMessage, setGitMessage] = useState<string | null>(null);
   const [isGitBusy, setIsGitBusy] = useState(false);
+  const [isCommitModalOpen, setIsCommitModalOpen] = useState(false);
+  const [commitMessage, setCommitMessage] = useState("");
+  const [selectedCommitPaths, setSelectedCommitPaths] = useState<Set<string>>(() => new Set());
+  const [commitError, setCommitError] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isGraphCollapsed, setIsGraphCollapsed] = useState(false);
   const selectedSession = useMemo(
@@ -181,11 +213,12 @@ export function App() {
   const refreshGitStatus = useCallback(async (root: string | null) => {
     if (!root) {
       setGitStatus(null);
-      return;
+      return null;
     }
 
     const status = await window.prometheus.git.getStatus({ workspaceRoot: root });
     setGitStatus(status);
+    return status;
   }, []);
 
   const loadWorkspace = useCallback(
@@ -266,32 +299,76 @@ export function App() {
     }
   }
 
-  async function commitChanges() {
+  async function openCommitModal() {
     const root = gitWorkspaceRoot(gitStatus, workspaceRoot);
 
     if (!root || isGitBusy) {
       return;
     }
 
-    const message = window.prompt("Commit message");
+    setCommitError(null);
+    setGitMessage(null);
 
-    if (!message?.trim()) {
+    const status = await refreshGitStatus(root);
+    const files = status?.files ?? gitStatus?.files ?? [];
+
+    setSelectedCommitPaths(new Set(files.map((file) => file.path)));
+    setCommitMessage("");
+    setIsCommitModalOpen(true);
+  }
+
+  function toggleCommitPath(path: string) {
+    setSelectedCommitPaths((current) => {
+      const next = new Set(current);
+
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+
+      return next;
+    });
+  }
+
+  async function commitSelectedChanges(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const root = gitWorkspaceRoot(gitStatus, workspaceRoot);
+    const files = Array.from(selectedCommitPaths);
+
+    if (!root || isGitBusy) {
+      return;
+    }
+
+    if (!commitMessage.trim()) {
+      setCommitError("Write a commit message.");
+      return;
+    }
+
+    if (files.length === 0) {
+      setCommitError("Select at least one file.");
       return;
     }
 
     setIsGitBusy(true);
+    setCommitError(null);
     setGitMessage(null);
 
     try {
       const result = await window.prometheus.git.commit({
         workspaceRoot: root,
-        message,
+        message: commitMessage,
+        files,
       });
 
       setGitStatus(result.status);
       setGitMessage(result.output || "Committed changes.");
+      setIsCommitModalOpen(false);
+      setCommitMessage("");
+      setSelectedCommitPaths(new Set());
     } catch (error) {
-      setGitMessage(error instanceof Error ? error.message : "Commit failed.");
+      setCommitError(error instanceof Error ? error.message : "Commit failed.");
       await refreshGitStatus(root);
     } finally {
       setIsGitBusy(false);
@@ -383,58 +460,49 @@ export function App() {
         isSidebarCollapsed ? styles.workspaceSidebarCollapsed : ""
       }`}
     >
-      <aside className={styles.sidebar} aria-label="Project navigation">
-        <section className={styles.gitPanel} aria-label="Git actions">
-          {gitStatus?.isRepository ? (
-            <div className={styles.gitMeta}>
-              <span className={styles.gitBranch}>{gitStatus.branch ?? "git"}</span>
-              <span className={styles.gitStatus}>
-                {gitSummaryLabel(gitStatus)}
-                {gitStatus.ahead ? ` +${gitStatus.ahead}` : ""}
-                {gitStatus.behind ? ` -${gitStatus.behind}` : ""}
-              </span>
-            </div>
-          ) : (
-            <div className={styles.gitMeta}>
-              <span className={styles.gitBranch}>git</span>
-              <span className={styles.gitStatus}>
-                {gitStatus?.lastError ? "Repository unavailable" : "No repository"}
-              </span>
-            </div>
-          )}
-          <button className={styles.ghostButton} type="button" onClick={() => void openFolder()}>
-            Open Folder
+      <header className={styles.appHeader}>
+        <div className={styles.productMark}>
+          <strong>Prometheus</strong>
+        </div>
+
+        <div className={styles.headerContext}>
+          <strong>{sessionTitle(selectedSession, activeFilePath)}</strong>
+          <span>
+            {workspaceLabel(workspaceRoot)}
+            {gitStatus?.isRepository ? ` / ${gitSummaryLabel(gitStatus)}` : ""}
+          </span>
+        </div>
+
+        <div className={styles.headerActions} aria-label="Workspace actions">
+          <button className={styles.headerSplitButton} type="button" onClick={() => void openFolder()}>
+            <span className={styles.headerButtonMain}>Open</span>
           </button>
+
           <button
-            className={styles.ghostButton}
-            type="button"
-            disabled={isGitBusy || !gitWorkspaceRoot(gitStatus, workspaceRoot)}
-            onClick={() => void refreshGitStatus(gitWorkspaceRoot(gitStatus, workspaceRoot))}
-          >
-            Status
-          </button>
-          <button
-            className={styles.commitButton}
+            className={styles.headerButton}
             type="button"
             disabled={
               isGitBusy ||
               !gitWorkspaceRoot(gitStatus, workspaceRoot) ||
               (gitStatus?.isRepository === true && gitStatus.summary.changed === 0)
             }
-            onClick={() => void commitChanges()}
+            onClick={() => void openCommitModal()}
           >
-            Commit
+            <span>Commit</span>
           </button>
+
           <button
-            className={styles.ghostButton}
+            className={styles.headerButton}
             type="button"
             disabled={isGitBusy || !gitWorkspaceRoot(gitStatus, workspaceRoot)}
             onClick={() => void pushChanges()}
           >
-            Push
+            <span>Push</span>
           </button>
-        </section>
+        </div>
+      </header>
 
+      <aside className={styles.sidebar} aria-label="Project navigation">
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Files</h2>
@@ -551,6 +619,82 @@ export function App() {
         >
           &lt;
         </button>
+      ) : null}
+
+      {isCommitModalOpen ? (
+        <div className={styles.modalBackdrop} role="presentation">
+          <form className={styles.commitModal} onSubmit={(event) => void commitSelectedChanges(event)}>
+            <div className={styles.modalHeader}>
+              <div>
+                <strong>Commit changes</strong>
+                <span>{gitStatus?.branch ?? workspaceLabel(workspaceRoot)}</span>
+              </div>
+              <button
+                type="button"
+                aria-label="Close commit modal"
+                onClick={() => setIsCommitModalOpen(false)}
+              >
+                x
+              </button>
+            </div>
+
+            <label className={styles.commitMessageField}>
+              <span>Message</span>
+              <input
+                value={commitMessage}
+                onChange={(event) => setCommitMessage(event.target.value)}
+                placeholder="Commit message"
+                disabled={isGitBusy}
+                autoFocus
+              />
+            </label>
+
+            <div className={styles.commitFilesHeader}>
+              <span>Files</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedCommitPaths(new Set(gitStatus?.files.map((file) => file.path) ?? []))
+                }
+              >
+                select all
+              </button>
+            </div>
+
+            <div className={styles.commitFileList}>
+              {gitStatus?.files.length ? (
+                gitStatus.files.map((file) => (
+                  <label className={styles.commitFileRow} key={`${file.index}:${file.workingTree}:${file.path}`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedCommitPaths.has(file.path)}
+                      onChange={() => toggleCommitPath(file.path)}
+                      disabled={isGitBusy}
+                    />
+                    <span>{file.path}</span>
+                    <em>{gitFileStateLabel(file)}</em>
+                  </label>
+                ))
+              ) : (
+                <p className={styles.emptyList}>No changed files.</p>
+              )}
+            </div>
+
+            {commitError ? <p className={styles.modalError}>{commitError}</p> : null}
+
+            <div className={styles.modalActions}>
+              <button type="button" onClick={() => setIsCommitModalOpen(false)} disabled={isGitBusy}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isGitBusy || !commitMessage.trim() || selectedCommitPaths.size === 0}
+              >
+                {isGitBusy ? "Committing" : "Commit"}
+              </button>
+            </div>
+          </form>
+        </div>
       ) : null}
     </main>
   );

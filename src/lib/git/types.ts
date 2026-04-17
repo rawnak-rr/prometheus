@@ -27,6 +27,7 @@ export type GitStatusResponse = {
 export type GitCommitRequest = {
   workspaceRoot: string | null;
   message: string;
+  files: string[];
 };
 
 export type GitPushRequest = {
