@@ -82,6 +82,10 @@ function workspaceRootFromRequest(request?: { workspaceRoot?: unknown }) {
     : defaultWorkspaceRoot();
 }
 
+function isModifierShortcut(input: Electron.Input) {
+  return input.control || input.meta;
+}
+
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1440,
@@ -108,11 +112,32 @@ function createWindow() {
     return { action: "deny" };
   });
 
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown" || !isModifierShortcut(input)) {
+      return;
+    }
+
+    const key = input.key.toLowerCase();
+    const code = input.code.toLowerCase();
+
+    if (key !== "b" && key !== "g" && code !== "keyb" && code !== "keyg") {
+      return;
+    }
+
+    event.preventDefault();
+    mainWindow.webContents.send(
+      "shell:shortcut",
+      key === "b" || code === "keyb" ? "toggle-sidebar" : "toggle-graph",
+    );
+  });
+
   if (process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
   } else {
     void mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
   }
+
+  return mainWindow;
 }
 
 ipcMain.handle("providers:list", async (): Promise<LocalProvidersResponse> => {

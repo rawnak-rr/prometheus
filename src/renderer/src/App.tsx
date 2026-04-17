@@ -47,6 +47,10 @@ function gitSummaryLabel(status: GitStatusResponse | null) {
   return `${status.summary.changed} changed`;
 }
 
+function gitWorkspaceRoot(status: GitStatusResponse | null, workspaceRoot: string | null) {
+  return status?.repositoryRoot ?? workspaceRoot;
+}
+
 type WorkspaceTreeNode = WorkspaceEntry & {
   name: string;
   children: WorkspaceTreeNode[];
@@ -209,19 +213,17 @@ export function App() {
   }, [loadWorkspace]);
 
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key.toLowerCase() !== "b" || (!event.metaKey && !event.ctrlKey)) {
+    const unsubscribeShortcut = window.prometheus.shell.onShortcut((shortcut) => {
+      if (shortcut === "toggle-sidebar") {
+        setIsSidebarCollapsed((current) => !current);
         return;
       }
 
-      event.preventDefault();
-      setIsSidebarCollapsed((current) => !current);
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
+      setIsGraphCollapsed((current) => !current);
+    });
 
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      unsubscribeShortcut();
     };
   }, []);
 
@@ -265,7 +267,9 @@ export function App() {
   }
 
   async function commitChanges() {
-    if (!workspaceRoot || isGitBusy) {
+    const root = gitWorkspaceRoot(gitStatus, workspaceRoot);
+
+    if (!root || isGitBusy) {
       return;
     }
 
@@ -280,7 +284,7 @@ export function App() {
 
     try {
       const result = await window.prometheus.git.commit({
-        workspaceRoot,
+        workspaceRoot: root,
         message,
       });
 
@@ -288,14 +292,16 @@ export function App() {
       setGitMessage(result.output || "Committed changes.");
     } catch (error) {
       setGitMessage(error instanceof Error ? error.message : "Commit failed.");
-      await refreshGitStatus(workspaceRoot);
+      await refreshGitStatus(root);
     } finally {
       setIsGitBusy(false);
     }
   }
 
   async function pushChanges() {
-    if (!workspaceRoot || isGitBusy) {
+    const root = gitWorkspaceRoot(gitStatus, workspaceRoot);
+
+    if (!root || isGitBusy) {
       return;
     }
 
@@ -303,13 +309,13 @@ export function App() {
     setGitMessage(null);
 
     try {
-      const result = await window.prometheus.git.push({ workspaceRoot });
+      const result = await window.prometheus.git.push({ workspaceRoot: root });
 
       setGitStatus(result.status);
       setGitMessage(result.output || "Pushed changes.");
     } catch (error) {
       setGitMessage(error instanceof Error ? error.message : "Push failed.");
-      await refreshGitStatus(workspaceRoot);
+      await refreshGitStatus(root);
     } finally {
       setIsGitBusy(false);
     }
@@ -377,24 +383,8 @@ export function App() {
         isSidebarCollapsed ? styles.workspaceSidebarCollapsed : ""
       }`}
     >
-      <header className={styles.topBar}>
-        <div className={styles.workspaceIdentity}>
-          <button
-            className={styles.iconButton}
-            type="button"
-            aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title="Toggle sidebar (Cmd/Ctrl+B)"
-            onClick={() => setIsSidebarCollapsed((current) => !current)}
-          >
-            {isSidebarCollapsed ? ">" : "<"}
-          </button>
-          <div className={styles.workspaceTitle}>
-            <strong>{workspaceLabel(workspaceRoot)}</strong>
-            <span>{workspaceRoot ?? "Open a folder to start"}</span>
-          </div>
-        </div>
-
-        <div className={styles.gitBar} aria-label="Git actions">
+      <aside className={styles.sidebar} aria-label="Project navigation">
+        <section className={styles.gitPanel} aria-label="Git actions">
           {gitStatus?.isRepository ? (
             <div className={styles.gitMeta}>
               <span className={styles.gitBranch}>{gitStatus.branch ?? "git"}</span>
@@ -418,15 +408,19 @@ export function App() {
           <button
             className={styles.ghostButton}
             type="button"
-            disabled={isGitBusy || !workspaceRoot}
-            onClick={() => void refreshGitStatus(workspaceRoot)}
+            disabled={isGitBusy || !gitWorkspaceRoot(gitStatus, workspaceRoot)}
+            onClick={() => void refreshGitStatus(gitWorkspaceRoot(gitStatus, workspaceRoot))}
           >
             Status
           </button>
           <button
             className={styles.commitButton}
             type="button"
-            disabled={isGitBusy || !gitStatus?.isRepository || gitStatus.summary.changed === 0}
+            disabled={
+              isGitBusy ||
+              !gitWorkspaceRoot(gitStatus, workspaceRoot) ||
+              (gitStatus?.isRepository === true && gitStatus.summary.changed === 0)
+            }
             onClick={() => void commitChanges()}
           >
             Commit
@@ -434,19 +428,12 @@ export function App() {
           <button
             className={styles.ghostButton}
             type="button"
-            disabled={isGitBusy || !gitStatus?.isRepository}
+            disabled={isGitBusy || !gitWorkspaceRoot(gitStatus, workspaceRoot)}
             onClick={() => void pushChanges()}
           >
             Push
           </button>
-        </div>
-      </header>
-
-      <aside className={styles.sidebar} aria-label="Project navigation">
-        <div className={styles.brand}>
-          <span className={styles.appName}>{workspaceLabel(workspaceRoot)}</span>
-          <span className={styles.sidebarHint}>Cmd/Ctrl+B</span>
-        </div>
+        </section>
 
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
@@ -554,6 +541,17 @@ export function App() {
           <ProjectGraph nodes={sampleProjectGraphNodes} edges={sampleProjectGraphEdges} />
         )}
       </aside>
+
+      {isGraphCollapsed ? (
+        <button
+          className={styles.graphEdgeToggle}
+          type="button"
+          aria-label="Expand graph"
+          onClick={() => setIsGraphCollapsed(false)}
+        >
+          &lt;
+        </button>
+      ) : null}
     </main>
   );
 }

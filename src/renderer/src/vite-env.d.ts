@@ -8,6 +8,11 @@ import type { WorkspaceBridge } from "@/lib/workspace/types";
 declare global {
   interface Window {
     prometheus: {
+      shell: {
+        onShortcut: (
+          listener: (shortcut: "toggle-sidebar" | "toggle-graph") => void,
+        ) => () => void;
+      };
       providers: {
         list: () => Promise<LocalProvidersResponse>;
       };

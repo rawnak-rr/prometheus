@@ -14,6 +14,22 @@ import type { GitBridge, GitActionResponse, GitStatusResponse } from "@/lib/git/
 import type { WorkspaceBridge, WorkspaceListFilesResponse } from "@/lib/workspace/types";
 
 const api = {
+  shell: {
+    onShortcut: (listener: (shortcut: "toggle-sidebar" | "toggle-graph") => void) => {
+      const wrappedListener = (
+        _event: Electron.IpcRendererEvent,
+        shortcut: "toggle-sidebar" | "toggle-graph",
+      ) => {
+        listener(shortcut);
+      };
+
+      ipcRenderer.on("shell:shortcut", wrappedListener);
+
+      return () => {
+        ipcRenderer.removeListener("shell:shortcut", wrappedListener);
+      };
+    },
+  },
   providers: {
     list: () => ipcRenderer.invoke("providers:list") as Promise<LocalProvidersResponse>,
   },

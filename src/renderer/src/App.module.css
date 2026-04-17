@@ -1,15 +1,15 @@
 .workspace {
   display: grid;
+  position: relative;
   height: 100vh;
   min-height: 100vh;
-  grid-template-rows: 44px minmax(0, 1fr);
   grid-template-columns: 292px minmax(0, 1fr) minmax(280px, 360px);
   background: var(--background);
   color: var(--foreground);
 }
 
 .workspaceGraphCollapsed {
-  grid-template-columns: 292px minmax(0, 1fr) 42px;
+  grid-template-columns: 292px minmax(0, 1fr) 0;
 }
 
 .workspaceSidebarCollapsed {
@@ -17,124 +17,98 @@
 }
 
 .workspaceSidebarCollapsed.workspaceGraphCollapsed {
-  grid-template-columns: 0 minmax(0, 1fr) 42px;
+  grid-template-columns: 0 minmax(0, 1fr) 0;
 }
 
-.topBar {
+.sidebar,
+.graphPanel {
+  border-color: var(--border);
+  background: var(--panel-soft);
+}
+
+.sidebar {
   display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  grid-column: 1;
+  grid-row: 1;
+  align-content: start;
+  gap: 14px;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  padding: 14px 12px;
+}
+
+.graphPanel {
+  display: grid;
+  grid-column: 3;
+  grid-row: 1;
+  min-height: 0;
+  min-width: 0;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
-  min-width: 0;
-  border-bottom: 1px solid var(--border);
-  background: #0b0f12;
-  padding: 0 12px;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  padding: 14px;
 }
 
-.workspaceIdentity {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
+.graphPanelCollapsed {
+  display: none;
 }
 
-.workspaceTitle {
+.gitPanel {
   display: grid;
-  gap: 1px;
-  min-width: 0;
-}
-
-.workspaceTitle strong,
-.workspaceTitle span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workspaceTitle strong {
-  color: var(--foreground);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.workspaceTitle span {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.gitBar {
-  display: flex;
-  align-items: center;
-  justify-content: end;
-  gap: 8px;
-  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  gap: 7px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
 }
 
 .gitMeta {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--background);
-  min-height: 28px;
-  padding: 0 9px;
+}
+
+.gitBranch,
+.gitStatus {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gitBranch {
-  overflow: hidden;
   color: var(--foreground);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
-  max-width: 160px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .gitStatus {
-  overflow: hidden;
   color: var(--muted);
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.iconButton,
 .ghostButton,
 .commitButton {
+  align-self: center;
+  min-height: 28px;
   border: 1px solid var(--border);
   border-radius: 6px;
+  background: transparent;
   color: var(--muted-strong);
   cursor: pointer;
   font-size: 11px;
   font-weight: 800;
-  min-height: 28px;
-}
-
-.iconButton {
-  background: transparent;
-  width: 26px;
-  padding: 0;
-}
-
-.ghostButton,
-.commitButton {
-  padding: 0 11px;
-}
-
-.ghostButton {
-  background: transparent;
+  padding: 0 9px;
 }
 
 .commitButton {
-  border-color: rgba(113, 215, 217, 0.5);
+  border-color: rgba(113, 215, 217, 0.55);
   background: rgba(113, 215, 217, 0.09);
   color: var(--accent);
 }
 
-.iconButton:hover,
 .ghostButton:not(:disabled):hover,
 .commitButton:not(:disabled):hover {
   border-color: var(--border-strong);
@@ -151,64 +125,6 @@
 .commitButton:disabled {
   cursor: not-allowed;
   opacity: 0.42;
-}
-
-.sidebar,
-.graphPanel {
-  border-color: var(--border);
-  background: var(--panel-soft);
-}
-
-.sidebar {
-  display: grid;
-  align-content: start;
-  gap: 18px;
-  min-height: 0;
-  min-width: 0;
-  overflow: auto;
-  border-right: 1px solid var(--border);
-  padding: 14px 12px;
-}
-
-.graphPanel {
-  display: grid;
-  min-height: 0;
-  min-width: 0;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 12px;
-  overflow: auto;
-  border-left: 1px solid var(--border);
-  padding: 14px;
-}
-
-.graphPanelCollapsed {
-  justify-items: center;
-  padding: 14px 7px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border-bottom: 1px solid var(--border);
-  padding: 0 2px 12px;
-}
-
-.appName {
-  overflow: hidden;
-  color: var(--foreground);
-  font-size: 13px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.sidebarHint {
-  color: var(--muted);
-  font-size: 10px;
-  white-space: nowrap;
 }
 
 .workspaceSidebarCollapsed .sidebar {
@@ -463,6 +379,8 @@
 
 .main {
   display: grid;
+  grid-column: 2;
+  grid-row: 1;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
@@ -485,13 +403,11 @@
 }
 
 .graphPanelCollapsed .graphHeader {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
+  display: none;
 }
 
 .graphPanelCollapsed .graphHeader h2 {
-  writing-mode: vertical-rl;
+  display: none;
 }
 
 .graphToggle {
@@ -510,6 +426,28 @@
   color: var(--foreground);
 }
 
+.graphEdgeToggle {
+  position: absolute;
+  top: 12px;
+  right: 10px;
+  z-index: 2;
+  width: 28px;
+  min-height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.graphEdgeToggle:hover {
+  border-color: var(--border-strong);
+  background: var(--panel-strong);
+  color: var(--foreground);
+}
+
 @media (max-width: 980px) {
   .workspace {
     height: auto;
@@ -518,7 +456,9 @@
     overflow: visible;
   }
 
-  .workspaceGraphCollapsed {
+  .workspaceGraphCollapsed,
+  .workspaceSidebarCollapsed,
+  .workspaceSidebarCollapsed.workspaceGraphCollapsed {
     grid-template-columns: 1fr;
   }
 

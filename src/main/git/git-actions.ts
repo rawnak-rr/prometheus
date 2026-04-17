@@ -71,6 +71,11 @@ async function repositoryRoot(workspaceRoot: string) {
   return result.stdout.trim();
 }
 
+async function gitRoot(workspaceRoot: string) {
+  const root = await repositoryRoot(workspaceRoot);
+  return root || workspaceRoot;
+}
+
 export async function getGitStatus(workspaceRoot: string): Promise<GitStatusResponse> {
   try {
     const [rootResult, statusResult] = await Promise.all([
@@ -124,9 +129,11 @@ export async function commitGitChanges(
     throw new Error("Commit message is required.");
   }
 
-  await runGit(workspaceRoot, ["add", "-A"]);
-  const commitResult = await runGit(workspaceRoot, ["commit", "-m", trimmedMessage]);
-  const status = await getGitStatus(workspaceRoot);
+  const repositoryRoot = await gitRoot(workspaceRoot);
+
+  await runGit(repositoryRoot, ["add", "-A"]);
+  const commitResult = await runGit(repositoryRoot, ["commit", "-m", trimmedMessage]);
+  const status = await getGitStatus(repositoryRoot);
 
   return {
     status,
@@ -135,8 +142,10 @@ export async function commitGitChanges(
 }
 
 export async function pushGitChanges(workspaceRoot: string): Promise<GitActionResponse> {
-  const pushResult = await runGit(workspaceRoot, ["push"]);
-  const status = await getGitStatus(workspaceRoot);
+  const repositoryRoot = await gitRoot(workspaceRoot);
+
+  const pushResult = await runGit(repositoryRoot, ["push"]);
+  const status = await getGitStatus(repositoryRoot);
 
   return {
     status,
