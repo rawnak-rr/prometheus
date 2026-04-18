@@ -696,7 +696,7 @@ export function App() {
         <div className={styles.graphContextConvention}>
           <h4>Markdown Convention</h4>
           <p>
-            Click a context file to open it in the center workspace. Keep each
+            Click a context file to view it in the center workspace. Keep each
             file short: purpose, current decisions, relevant files,
             constraints, tools, and last verified date.
           </p>
@@ -711,37 +711,47 @@ export function App() {
   function renderGraphMarkdownWorkspace(file: GraphContextFile) {
     return (
       <section
-        className={styles.markdownWorkspace}
+        className={styles.markdownViewer}
         aria-label='Graph context markdown file'>
-        <div className={styles.markdownTabs}>
-          <div className={styles.markdownTab}>
-            <span>{file.path.split("/").at(-1)}</span>
-            <button
-              type='button'
-              aria-label='Close markdown file'
-              onClick={() => setActiveGraphContextFile(null)}>
-              x
-            </button>
-          </div>
-        </div>
-
-        <div className={styles.markdownEditorHeader}>
+        <div className={styles.markdownViewerHeader}>
           <div>
             <span>{file.path}</span>
             <strong>{file.nodeTitle}</strong>
           </div>
-          <span>Markdown</span>
+          <button
+            type='button'
+            aria-label='Close markdown file'
+            onClick={() => setActiveGraphContextFile(null)}>
+            close
+          </button>
         </div>
 
-        <div className={styles.markdownEditor}>
-          <div
-            className={styles.markdownLineNumbers}
-            aria-hidden='true'>
-            {file.content.split("\n").map((_, index) => (
-              <span key={`${file.path}:${index}`}>{index + 1}</span>
-            ))}
-          </div>
-          <pre>{file.content}</pre>
+        <div className={styles.markdownDocument}>
+          {file.content.split("\n").map((line, index) => {
+            const key = `${file.path}:${index}`;
+
+            if (!line.trim()) {
+              return <div className={styles.markdownBlankLine} key={key} />;
+            }
+
+            if (line.startsWith("# ")) {
+              return <h1 key={key}>{line.slice(2)}</h1>;
+            }
+
+            if (line.startsWith("## ")) {
+              return <h2 key={key}>{line.slice(3)}</h2>;
+            }
+
+            if (line.startsWith("### ")) {
+              return <h3 key={key}>{line.slice(4)}</h3>;
+            }
+
+            if (line.startsWith("- ")) {
+              return <p className={styles.markdownBullet} key={key}>{line.slice(2)}</p>;
+            }
+
+            return <p key={key}>{line}</p>;
+          })}
         </div>
       </section>
     );
