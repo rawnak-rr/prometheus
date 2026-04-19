@@ -946,7 +946,7 @@ export function App() {
           />
         )}
         <div className={styles.graphHeader}>
-          <h2>Graph</h2>
+          {isGraphCollapsed ? null : <h2>Graph</h2>}
           <div
             className={styles.graphActions}
             role='group'
