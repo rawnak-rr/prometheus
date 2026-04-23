@@ -9,6 +9,7 @@ export const sampleProjectGraphNodes: ProjectGraphNode[] = [
     type: "project",
     title: "Prometheus",
     description: "The active repository and workspace for project-aware AI memory.",
+    shortNote: "Core repo and orchestration surface.",
     metadata: [
       { label: "Scope", value: "MVP web app" },
       { label: "State", value: "Bootstrap" },
@@ -37,6 +38,7 @@ Use this node when the task affects the whole app direction or cross-cutting age
     type: "provider",
     title: "Codex",
     description: "Local terminal coding agent available through the provider layer.",
+    shortNote: "Provider runtime for local coding tasks.",
     metadata: [
       { label: "Mode", value: "Local CLI" },
       { label: "Status", value: "Planned integration" },
@@ -68,6 +70,7 @@ Do not load this node for purely visual graph work unless provider routing is in
     type: "chat",
     title: "Bootstrap Chat",
     description: "Initial conversation that defined the Prometheus MVP and graph-first direction.",
+    shortNote: "Seed conversation behind early product direction.",
     metadata: [
       { label: "Messages", value: "Seeded" },
       { label: "Provider", value: "Codex" },
@@ -94,6 +97,7 @@ Do not inject full chat summaries by default. Extract durable decisions into fea
     type: "file",
     title: "PROJECT_PLAN.md",
     description: "Local planning document with goals, MVP scope, and implementation chunks.",
+    shortNote: "Living spec for roadmap and scope.",
     metadata: [
       { label: "Git", value: "Ignored" },
       { label: "Role", value: "Living spec" },
@@ -122,6 +126,7 @@ Link this node to decisions and feature nodes instead of copying long planning t
     type: "topic",
     title: "Graph V1",
     description: "Obsidian-style nodes and typed edges for visual project context.",
+    shortNote: "Current graph interaction and context UX.",
     metadata: [
       { label: "Priority", value: "MVP" },
       { label: "Depth", value: "Visual first" },
@@ -155,6 +160,7 @@ Turn selected nodes into context pack previews that show files, rules, tools, an
     type: "message_summary",
     title: "MVP Summary",
     description: "A compact summary of the early product direction and deferred AI graph work.",
+    shortNote: "Durable snapshot of MVP scope and constraints.",
     metadata: [
       { label: "Covers", value: "Scope and constraints" },
       { label: "Next", value: "Real graph data" },

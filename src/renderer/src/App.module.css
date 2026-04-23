@@ -571,13 +571,66 @@
   line-height: 1.5;
 }
 
+.graphContextNote {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-strong);
+  padding: 10px 12px;
+}
+
+.graphContextNote span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.graphContextNote p {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.graphMetadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.graphMetadataItem {
+  display: grid;
+  gap: 3px;
+  min-width: 92px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-strong);
+  padding: 8px 10px;
+}
+
+.graphMetadataItem span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.graphMetadataItem strong {
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .graphContextTree {
   display: grid;
   gap: 2px;
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(216, 222, 233, 0.025);
+  background: var(--panel-strong);
   padding: 8px 6px;
 }
 

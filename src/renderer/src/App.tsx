@@ -662,7 +662,23 @@ export function App() {
           <strong>{node.title}</strong>
         </div>
 
+        <div className={styles.graphContextNote}>
+          <span>Node note</span>
+          <p>{node.shortNote}</p>
+        </div>
+
         <p className={styles.graphContextDescription}>{node.description}</p>
+
+        {node.metadata.length > 0 ? (
+          <div className={styles.graphMetadata}>
+            {node.metadata.map((item) => (
+              <div className={styles.graphMetadataItem} key={`${node.id}-${item.label}`}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <div className={styles.graphContextTree}>
           <div className={styles.graphTreeFolder}>

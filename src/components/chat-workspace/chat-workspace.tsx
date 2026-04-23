@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import type {
   ChatApprovalDecision,
@@ -13,12 +13,6 @@ import styles from "./chat-workspace.module.css";
 const providerLabels: Record<ChatProviderId, string> = {
   claude: "Claude",
   codex: "Codex",
-};
-
-const runtimeLabels: Record<ChatRuntimeMode, string> = {
-  chat: "chat",
-  "read-only": "read-only",
-  "workspace-write": "workspace-write",
 };
 
 type MessageBlock =
@@ -409,17 +403,6 @@ export function ChatWorkspace({
   const pendingApprovals = session?.pendingApprovals ?? [];
   const activeApproval = pendingApprovals[0] ?? null;
   const title = session?.title ?? "new thread";
-  const subtitle = useMemo(() => {
-    const provider = session?.providerId ?? providerId;
-    const runtime = session?.runtimeMode ?? runtimeMode;
-    const modelLabel = session?.model ?? model.trim();
-    return [
-      providerLabels[provider].toLowerCase(),
-      runtimeLabels[runtime],
-      session?.activeFilePath ?? activeFilePath ?? "repo",
-      modelLabel || "default model",
-    ].join(" / ");
-  }, [activeFilePath, model, providerId, runtimeMode, session]);
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -496,7 +479,6 @@ export function ChatWorkspace({
         {messages.length === 0 ? (
           <div className={styles.emptyState}>
             <strong>{title}</strong>
-            <p>{subtitle}</p>
           </div>
         ) : (
           messages.map((message) => <ChatMessageArticle key={message.id} message={message} />)

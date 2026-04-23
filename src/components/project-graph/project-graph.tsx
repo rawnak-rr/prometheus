@@ -1,24 +1,26 @@
 import {
   Background,
   Controls,
+  Handle,
   MarkerType,
+  Position,
   MiniMap,
   ReactFlow,
   type Edge,
   type Node,
+  type NodeProps,
 } from "@xyflow/react";
-import { useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 
-import type {
-  ProjectGraphEdge,
-  ProjectGraphNode,
-} from "@/lib/graph/types";
+import type { ProjectGraphEdge, ProjectGraphNode } from "@/lib/graph/types";
 import styles from "./project-graph.module.css";
 
 type FlowNodeData = Record<string, unknown> & {
-  label: string;
+  kind: ProjectGraphNode["type"];
   title: string;
   description: string;
+  shortNote: string;
+  showNote: boolean;
 };
 
 type ProjectGraphProps = {
@@ -28,12 +30,37 @@ type ProjectGraphProps = {
   onSelectedNodeIdChange: (nodeId: string | null) => void;
 };
 
-const nodeStyle = {
-  background: "#181a1f",
-  border: "1px solid #343842",
-  color: "#f4f4f5",
-  width: 148,
+const NOTE_ZOOM_THRESHOLD = 0.88;
+
+const nodeTypes = {
+  graphNode: memo(function GraphNode({ data, selected }: NodeProps<Node<FlowNodeData>>) {
+    return (
+      <div
+        className={[
+          styles.graphNode,
+          selected ? styles.graphNodeSelected : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        title={data.description}
+      >
+        <Handle className={styles.graphHandle} id="left-target" isConnectable={false} position={Position.Left} type="target" />
+        <Handle className={styles.graphHandle} id="right-source" isConnectable={false} position={Position.Right} type="source" />
+        <Handle className={styles.graphHandle} id="right-target" isConnectable={false} position={Position.Right} type="target" />
+        <Handle className={styles.graphHandle} id="left-source" isConnectable={false} position={Position.Left} type="source" />
+        <span className={styles.graphNodeDot} />
+        <div className={styles.graphNodeCopy}>
+          <strong>{data.title}</strong>
+          {data.showNote ? <p>{data.shortNote}</p> : null}
+        </div>
+      </div>
+    );
+  }),
 };
+
+function minimapNodeColor(node: Node) {
+  return node.selected ? "#d7e36d" : "#6b7280";
+}
 
 export function ProjectGraph({
   nodes,
@@ -41,20 +68,25 @@ export function ProjectGraph({
   selectedNodeId,
   onSelectedNodeIdChange,
 }: ProjectGraphProps) {
+  const [zoom, setZoom] = useState(1);
+
   const flowNodes = useMemo<Node<FlowNodeData>[]>(
     () =>
       nodes.map((node) => ({
         id: node.id,
+        type: "graphNode",
         position: node.position,
         selected: node.id === selectedNodeId,
+        draggable: false,
         data: {
-          label: node.title,
+          kind: node.type,
           title: node.title,
           description: node.description,
+          shortNote: node.shortNote,
+          showNote: zoom >= NOTE_ZOOM_THRESHOLD,
         },
-        style: nodeStyle,
       })),
-    [nodes, selectedNodeId],
+    [nodes, selectedNodeId, zoom],
   );
 
   const flowEdges = useMemo<Edge[]>(
@@ -63,11 +95,16 @@ export function ProjectGraph({
         id: edge.id,
         source: edge.sourceNodeId,
         target: edge.targetNodeId,
-        label: edge.label,
+        label: "",
         animated: edge.weight >= 0.9,
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: "#5d6370",
+          color: "#7a808d",
+        },
+        style: {
+          stroke: "#7a808d",
+          strokeOpacity: 1,
+          strokeWidth: 2.2,
         },
       })),
     [edges],
@@ -80,16 +117,19 @@ export function ProjectGraph({
           className={styles.flow}
           nodes={flowNodes}
           edges={flowEdges}
+          nodeTypes={nodeTypes}
           fitView
-          fitViewOptions={{ padding: 0.28 }}
+          fitViewOptions={{ padding: 0.22 }}
+          onInit={(instance) => setZoom(instance.getZoom())}
+          onMove={(_, viewport) => setZoom(viewport.zoom)}
           onNodeClick={(_, node) => onSelectedNodeIdChange(node.id)}
           onPaneClick={() => onSelectedNodeIdChange(null)}
           proOptions={{ hideAttribution: true }}
         >
-          <Background color="#30323b" gap={18} size={1} />
+          <Background color="#2c2f37" gap={18} size={1} />
           <MiniMap
-            maskColor="rgba(16, 17, 20, 0.68)"
-            nodeColor={(node) => (node.selected ? "#4cc9a6" : "#343842")}
+            maskColor="rgba(13, 14, 17, 0.74)"
+            nodeColor={minimapNodeColor}
             pannable
             zoomable
           />

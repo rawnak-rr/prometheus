@@ -26,6 +26,7 @@ export type ProjectGraphNode = {
   type: GraphNodeKind;
   title: string;
   description: string;
+  shortNote: string;
   metadata: GraphMetadataItem[];
   contextPath?: string;
   contextMarkdown?: string;
